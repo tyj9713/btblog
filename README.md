@@ -1,4 +1,6 @@
-# 测试博客
+# btblog（宝塔 + Argo 隧道）
+
+本目录从 Argoblog 拆出，专用于 **宝塔面板非交互安装** 与 **管理口 Cloudflare 隧道**。原 Argo/梭哈能力保留。
 
 ## Azure Web App 运行建议
 
@@ -10,7 +12,7 @@
 - `/healthz` 只检查 Node 进程是否存活；`/readyz` 会额外检查 Xray 和 Cloudflared 进程状态。
 - 启动和重启服务会立即返回，实际进度通过页面状态、`/suoha-status`、`/logs` 查看。
 
-## 宝塔面板全自动安装（分支 `feature/baota-auto-tunnel`）
+## 宝塔面板全自动安装
 
 拉取代码后由 `entrypoint.sh` 自动后台执行 `install-baota.sh`，无需人工输入 `y`：
 
