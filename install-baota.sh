@@ -11,7 +11,6 @@ TUNNEL_LOG="${RUNTIME_DIR}/baota-argo.log"
 URL_FILE="${RUNTIME_DIR}/baota-panel-url.txt"
 DEFAULT_FILE="${RUNTIME_DIR}/baota-default.txt"
 MARKER_FILE="${RUNTIME_DIR}/.baota-installed"
-PERSIST_WWW_ROOT="${RUNTIME_DIR}/baota-www-root"
 INSTALL_SCRIPT_URL="${BT_INSTALL_URL:-https://bt.cxinyun.com/install/install_panel.sh}"
 
 log() {
@@ -24,48 +23,8 @@ panel_files_exist() {
 
 clear_stale_install_marker() {
   if [ -f "$MARKER_FILE" ] && ! panel_files_exist; then
-    log "安装标记存在但 /www/server/panel 缺失，清除旧标记与过期地址文件"
+    log "容器重启后面板文件已丢失，清除旧标记，将重新安装宝塔"
     rm -f "$MARKER_FILE" "$URL_FILE" "$DEFAULT_FILE"
-  fi
-}
-
-restore_persisted_www() {
-  if panel_files_exist; then
-    return 0
-  fi
-  if [ ! -d "$PERSIST_WWW_ROOT/server/panel" ]; then
-    return 1
-  fi
-
-  log "从持久化目录恢复宝塔 /www: $PERSIST_WWW_ROOT"
-  rm -rf /www
-  ln -sfn "$PERSIST_WWW_ROOT" /www
-  panel_files_exist
-}
-
-persist_www_tree() {
-  if ! panel_files_exist; then
-    return 1
-  fi
-
-  if [ -L /www ] && [ "$(readlink -f /www 2>/dev/null || true)" = "$(readlink -f "$PERSIST_WWW_ROOT" 2>/dev/null || true)" ]; then
-    log "宝塔 /www 已链接到持久化目录"
-    return 0
-  fi
-
-  if [ -d "$PERSIST_WWW_ROOT/server/panel" ]; then
-    log "持久化目录已有宝塔文件，重建 /www 链接"
-    rm -rf /www
-    ln -sfn "$PERSIST_WWW_ROOT" /www
-    return 0
-  fi
-
-  if [ -d /www/server/panel ] && [ ! -L /www ]; then
-    log "迁移宝塔 /www 到持久化目录: $PERSIST_WWW_ROOT"
-    mkdir -p "$(dirname "$PERSIST_WWW_ROOT")"
-    mv /www "$PERSIST_WWW_ROOT"
-    ln -sfn "$PERSIST_WWW_ROOT" /www
-    log "宝塔文件已持久化到运行目录"
   fi
 }
 
@@ -124,7 +83,6 @@ install_baota_panel() {
 
   if panel_files_exist; then
     touch "$MARKER_FILE"
-    persist_www_tree || true
     log "宝塔安装成功"
   else
     rm -f "$MARKER_FILE"
@@ -207,7 +165,7 @@ start_baota_service() {
     return 0
   fi
 
-  log "宝塔面板未能自动启动；若容器重启后 bt 不存在，可依赖 /www/server/panel/init.sh 或点击面板重新安装"
+  log "宝塔面板未能自动启动，请查看 $INSTALL_LOG"
   return 1
 }
 
@@ -279,12 +237,9 @@ main() {
   mkdir -p "$RUNTIME_DIR"
   echo "" >>"$INSTALL_LOG"
   echo "[$(date -Iseconds)] install-baota.sh 启动, runtime=$RUNTIME_DIR" | tee -a "$INSTALL_LOG"
-
   clear_stale_install_marker
-  restore_persisted_www || true
 
   install_baota_panel || true
-  restore_persisted_www || true
   start_baota_service || true
   save_bt_default
   start_panel_tunnel || log "宝塔隧道启动失败，可稍后由保活重试"
