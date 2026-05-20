@@ -157,8 +157,8 @@ app.get('/server-info', auth.requireAuth, (req, res) => {
   });
 });
 
-// 获取v2ray链接信息
-app.get('/xxxooo', auth.requireAuth, (req, res) => {
+// 订阅链接（公开，供客户端直接拉取）
+app.get('/xxxooo', (req, res) => {
   const v2rayPath = runtimePath('v2ray.txt');
   if (fs.existsSync(v2rayPath)) {
     fs.readFile(v2rayPath, 'utf8', (err, data) => {
@@ -197,7 +197,7 @@ app.post('/start-baota', auth.requireAuth, async (req, res) => {
       console.error("后台启动宝塔任务失败:", error.message);
     });
     res.json({
-      message: alreadyStarting ? "宝塔任务正在执行中" : "宝塔安装/隧道任务已提交",
+      message: alreadyStarting ? "宝塔任务正在执行中" : "宝塔面板/隧道任务已在后台启动，请查看安装日志",
       starting: true,
     });
   } catch (error) {
@@ -406,6 +406,7 @@ function keep_baota_alive() {
 }
 
 setInterval(keep_baota_alive, 3 * 60 * 1000);
+keep_baota_alive();
 
 // 启动entrypoint.sh脚本
 exec(`bash ${shellQuote(path.join(__dirname, 'entrypoint.sh'))}`, {

@@ -658,8 +658,12 @@
           lines.push("", "状态: 宝塔尚未安装完成");
         } else if (data.ready) {
           lines.push("", "状态: 已就绪（面板 + 隧道 + 外网地址）");
+        } else if (data.panelRunning === false && data.tunnelRunning) {
+          lines.push("", "状态: 面板已停止但隧道仍在运行，外网地址可能失效。请点击「启动宝塔」或等待保活自动修复。");
+        } else if (data.panelRunning && data.tunnelRunning === false) {
+          lines.push("", "状态: 面板在运行但隧道未就绪，请点击「启动宝塔」重建隧道。");
         } else {
-          lines.push("", "状态: 安装或隧道进行中，请查看下方日志");
+          lines.push("", "状态: 面板或隧道未就绪，请点击「启动宝塔」并查看下方日志");
         }
         const loginBlock = logs.loginInfo || logs.defaultInfo;
         if (loginBlock && !String(loginBlock).includes("不存在")) {
@@ -983,7 +987,7 @@
         setMessage(operationResult, "", "");
         withButtonState(this, "提交中...", async () => {
           const data = await fetchJson("/start-baota", { method: "POST" });
-          showResult(`${data.message}，请稍后查看宝塔标签页与日志。`);
+          showResult(`${data.message}，请稍后刷新宝塔标签页与安装日志。`);
           await Promise.all([getBaotaInfo(), getLogs()]);
         }).finally(() => {
           this.textContent = "启动宝塔";

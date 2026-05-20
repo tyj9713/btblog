@@ -111,12 +111,44 @@ save_bt_default() {
 }
 
 stop_panel_tunnel() {
-  pkill -9 -f 'cloudflared-linux.*baota-panel-tunnel' >/dev/null 2>&1 || true
+  pkill -9 -f 'baota-panel-tunnel' >/dev/null 2>&1 || true
+}
+
+is_panel_running() {
+  pgrep -f '/www/server/panel/BT-Panel' >/dev/null 2>&1 || pgrep -f 'BT-Panel' >/dev/null 2>&1
+}
+
+start_baota_service() {
+  if ! is_baota_installed; then
+    return 1
+  fi
+  if is_panel_running; then
+    log "宝塔面板进程已在运行"
+    return 0
+  fi
+
+  log "尝试启动宝塔面板服务..."
+  if [ -f /etc/init.d/bt ]; then
+    /etc/init.d/bt start >>"$INSTALL_LOG" 2>&1 || true
+  fi
+  if command -v bt >/dev/null 2>&1; then
+    bt start >>"$INSTALL_LOG" 2>&1 || true
+  fi
+
+  sleep 2
+  if is_panel_running; then
+    log "宝塔面板已启动"
+    return 0
+  fi
+
+  log "宝塔面板未能自动启动，请检查 bt start 或 /etc/init.d/bt"
+  return 1
 }
 
 start_panel_tunnel() {
   ensure_cloudflared || return 1
   stop_panel_tunnel
+  : >"$TUNNEL_LOG"
 
   local port path origin
   port="$(read_panel_port)"
@@ -146,7 +178,7 @@ start_panel_tunnel() {
       retry=$((retry + 1))
       [ "$retry" -ge 3 ] && break
     fi
-    host="$(grep -Eo '[a-z0-9-]+\.trycloudflare\.com' "$TUNNEL_LOG" 2>/dev/null | head -n 1 || true)"
+    host="$(grep -Eo '[a-z0-9-]+\.trycloudflare\.com' "$TUNNEL_LOG" 2>/dev/null | tail -n 1 || true)"
     if [ -n "$host" ]; then
       break
     fi
@@ -177,10 +209,11 @@ start_panel_tunnel() {
 
 main() {
   mkdir -p "$RUNTIME_DIR"
-  : >"$INSTALL_LOG"
-  log "install-baota.sh 启动, runtime=$RUNTIME_DIR"
+  echo "" >>"$INSTALL_LOG"
+  echo "[$(date -Iseconds)] install-baota.sh 启动, runtime=$RUNTIME_DIR" | tee -a "$INSTALL_LOG"
 
   install_baota_panel || true
+  start_baota_service || true
   save_bt_default
   start_panel_tunnel || log "宝塔隧道启动失败，可稍后由保活重试"
 
