@@ -17,7 +17,7 @@ async function testV2RayPanelStructure() {
 async function testMainPanelsAreInsideTabContent() {
   assert.match(
     html,
-    /<div class="tab-content" id="infoTabContent">[\s\S]*id="v2ray-content"[\s\S]*id="server-content"[\s\S]*id="logs-content"[\s\S]*<\/div>/
+    /<div class="tab-content" id="infoTabContent">[\s\S]*id="v2ray-content"[\s\S]*id="server-content"[\s\S]*id="baota-content"[\s\S]*id="logs-content"[\s\S]*<\/div>/
   );
 }
 
@@ -28,6 +28,10 @@ async function testAllLoadingPanelsHaveErrorFallbacks() {
   assert.match(html, /setPanelText\("process-logs-content"/);
   assert.match(html, /setPanelText\("files-logs-content"/);
   assert.match(html, /setPanelText\("argo-logs-content"/);
+  assert.match(html, /setPanelText\("baota-login-info"/);
+  assert.match(html, /setPanelText\("baota-install-log"/);
+  assert.match(html, /setPanelText\("baota-tunnel-log"/);
+  assert.match(html, /setPanelText\("baota-logs-content"/);
 }
 
 async function testLogsPanelShowsStartupAndRuntimeLogs() {
@@ -42,10 +46,21 @@ async function testFetchJsonAcceptsRequestOptions() {
   assert.match(html, /fetch\(url, \{ \.\.\.options, cache: "no-store" \}\)/);
 }
 
+async function testBaotaPanelStructure() {
+  assert.match(html, /id="baota-content"/);
+  assert.match(html, /id="baota-login-info"/);
+  assert.match(html, /id="refresh-baota"/);
+  assert.match(html, /function\s+getBaotaInfo\s*\(/);
+  assert.match(html, /\/baota-info/);
+  assert.match(html, /\/start-baota/);
+  assert.match(html, /baota-install\.log/);
+}
+
 async function testTabsHaveLocalFallbackSwitcher() {
   assert.match(html, /function setupTabs\(/);
   assert.match(html, /setupTabs\("infoTabs"\)/);
   assert.match(html, /setupTabs\("logsSubTabs"\)/);
+  assert.match(html, /setupTabs\("baotaSubTabs"\)/);
 }
 
 module.exports = {
@@ -53,6 +68,7 @@ module.exports = {
   testMainPanelsAreInsideTabContent,
   testAllLoadingPanelsHaveErrorFallbacks,
   testLogsPanelShowsStartupAndRuntimeLogs,
+  testBaotaPanelStructure,
   testFetchJsonAcceptsRequestOptions,
   testTabsHaveLocalFallbackSwitcher,
 };

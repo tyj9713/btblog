@@ -29,6 +29,7 @@ const baotaManager = new BaotaManager({
   logger: console,
   cwd: runtimeDir,
   urlFile: runtimePath('baota-panel-url.txt'),
+  defaultFile: runtimePath('baota-default.txt'),
   installLog: runtimePath('baota-install.log'),
   tunnelLog: runtimePath('baota-argo.log'),
   installedMarker: runtimePath('.baota-installed'),
@@ -274,6 +275,7 @@ app.get('/logs', (req, res) => {
       baotaInstallLog: readLogFile('baota-install.log'),
       baotaTunnelLog: readLogFile('baota-argo.log'),
       baotaPanelUrl: readLogFile('baota-panel-url.txt'),
+      baotaDefault: readLogFile('baota-default.txt'),
     });
   } catch (error) {
     res.status(500).json({ error: "获取日志信息失败", message: error.message });
