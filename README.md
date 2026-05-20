@@ -1,61 +1,266 @@
-# btblog（宝塔 + Argo 隧道）
+# btblog（梭哈 + 宝塔 + Cloudflare 隧道）
 
-本目录从 Argoblog 拆出，专用于 **宝塔面板非交互安装** 与 **管理口 Cloudflare 隧道**。原 Argo/梭哈能力保留。
+从 Argoblog 拆出的独立部署目录，集成：
 
-## 管理员访问控制
+- **梭哈 / Xray + Cloudflare Quick Tunnel**（订阅节点）
+- **宝塔面板**非交互安装与管理口临时隧道
+- **Web 管理面板**（管理员登录、服务控制、日志、端口绑定）
 
-- 公开首页：`/` 显示 Welcome 欢迎页。
-- 管理入口：`/admin` 登录后进入 `/admin/panel` 控制面板。
-- 所有管理 API（状态、日志、启动/停止、宝塔信息等）均需登录后访问。
-- 健康检查 `/healthz`、`/readyz` 保持公开，供 Azure Always On 使用。
+---
 
-在 Azure 应用服务 **配置 → 应用程序设置** 中添加：
+## 快速开始
 
-| 变量 | 必填 | 说明 |
+### 本地 / 服务器
+
+```bash
+npm install          # 仅依赖 express
+export ADMIN_PASSWORD='你的强密码'   # 必填，否则管理 API 不可用
+export PORT=3000     # 本地调试；Azure 会自动注入 PORT
+npm start
+```
+
+浏览器访问：
+
+| 地址 | 说明 |
+|------|------|
+| `/` | 公开 Welcome 页 |
+| `/admin` | 管理员登录 |
+| `/admin/panel` | 控制面板（需登录） |
+| `/xxxooo` | **公开**订阅链接（读 `v2ray.txt`） |
+| `/healthz` | 健康检查（Azure Always On） |
+
+### Azure Linux Web App
+
+1. 部署方式：Git / ZIP / GitHub Actions，启动命令 **`npm start`**
+2. **配置 → 应用程序设置** 至少设置 `ADMIN_PASSWORD`
+3. **配置 → 常规设置** 开启 **Always On**，Health check path = `/healthz`
+4. 应用启动后 `entrypoint.sh` 会自动后台跑 `suoha.sh` 与 `install-baota.sh`
+
+---
+
+## 环境变量一览
+
+### 必填（生产）
+
+| 变量 | 说明 |
+|------|------|
+| `ADMIN_PASSWORD` | 管理面板登录密码。未设置时 `/admin` 无法登录，受保护 API 返回 503 |
+| `PORT` | HTTP 监听端口。Azure 平台自动注入；本地默认代码里为 `443`，建议本地设 `3000` |
+
+### 管理员与会话
+
+| 变量 | 默认 | 说明 |
 |------|------|------|
-| `ADMIN_PASSWORD` | 是 | 管理员登录密码 |
-| `ADMIN_USERNAME` | 否 | 用户名，默认 `admin` |
-| `SESSION_SECRET` | 否 | 会话签名密钥；未设置时每次重启会重新生成 |
-| `ADMIN_SESSION_HOURS` | 否 | 会话有效期（小时），默认 `24` |
+| `ADMIN_USERNAME` | `admin` | 管理面板登录用户名 |
+| `SESSION_SECRET` | 随机生成 | 会话 Cookie 签名密钥；不设则**每次进程重启**所有登录失效 |
+| `ADMIN_SESSION_HOURS` | `24` | 登录会话有效期（小时） |
+| `ADMIN_COOKIE_SECURE` | 自动 | `true` / `false` 强制 Secure Cookie；Azure 生产环境一般自动为 true |
 
-## Azure Web App 运行建议
+### 运行时目录
 
-- 建议部署到 Linux Web App，启动命令保持 `npm start`。
-- 在 Azure Portal 开启 `Always On`，Health check path 配置为 `/healthz`。
-- 运行时文件默认写入应用部署目录，和 `suoha.sh`、`v2ray.txt`、`xray`、`cloudflared-linux` 保持在同一处；如需单独目录，可通过环境变量 `ARGO_RUNTIME_DIR` 覆盖。
-- `xray/xray` 与 `cloudflared-linux` 已存在且可执行时，`suoha.sh` 会跳过对应组件的下载/解压；`entrypoint.sh` 不再用旧模板覆盖 `suoha.sh`。
-- `/logs` 会返回 `suoha-start.log`、`suoha.log`、`xray.log`、`argo.log`，用于排查启动失败原因。
-- `/healthz` 只检查 Node 进程是否存活；`/readyz` 会额外检查 Xray 和 Cloudflared 进程状态。
-- 启动和重启服务会立即返回，实际进度通过页面状态、`/suoha-status`、`/logs` 查看。
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `ARGO_RUNTIME_DIR` | 应用根目录 | 日志、`v2ray.txt`、`cloudflared-linux`、`baota-*.log` 等写入位置。Azure 上通常为 `/home/site/wwwroot` |
 
-## 宝塔面板全自动安装
+### 宝塔安装
 
-拉取代码后由 `entrypoint.sh` 自动后台执行 `install-baota.sh`，无需人工输入 `y`：
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `BT_INSTALL_URL` | `https://bt.cxinyun.com/install/install_panel.sh` | 宝塔官方安装脚本下载地址 |
 
-- 使用 `yes | bash install_panel.sh` 非交互安装（源地址可通过 `BT_INSTALL_URL` 覆盖）。
-- 安装完成后读取 `/www/server/panel/data/port.pl` 与 `admin_path.pl`，用 Cloudflare Quick Tunnel 暴露 HTTPS 管理口。
-- 外网地址写入运行目录 `baota-panel-url.txt`；默认账号信息在 `baota-default.txt`（`bt default` 输出）。
-- API：`GET /baota-info`、`POST /start-baota`；日志字段见 `GET /logs`。
+> **不做持久化：** 宝塔装在容器系统盘 `/www`，重启后丢失。检测到面板不存在时会清除 `.baota-installed` 并**重新安装**（约 10–30 分钟）。保活每 3 分钟检查，或面板内点「启动宝塔」。
 
-**注意：** 宝塔需要 root 权限及完整 Linux 环境。标准 Azure App Service 沙箱可能无法安装；建议使用带 root 的 VM / 自定义容器。首次安装可能耗时 10–30 分钟，请查看 `baota-install.log`。
+### 端口临时隧道
 
-**容器重启：** 宝塔安装在系统盘 `/www`，重启后会丢失。本项目的策略是**不做持久化**，检测到面板不存在时自动清除旧标记并**重新安装**（约 10–30 分钟）。保活或点击「启动宝塔」即可触发。Azure App Service 上宝塔装在 `/`（overlay，约 34GB），与 1GB 的 `wwwroot` 无关；梭哈/Xray 仍使用 `wwwroot`。
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `MAX_PORT_TUNNELS` | `8` | 管理面板「端口绑定」最多同时绑定的端口数 |
 
-## 端口临时隧道绑定
+### Node 版本
 
-管理面板 **端口绑定** 标签页可为本地任意端口创建 Cloudflare Quick Tunnel（`trycloudflare.com`）：
+| 变量 | 要求 |
+|------|------|
+| （package.json `engines`） | Node **22.x**（`>=22 <23`） |
 
-- 输入端口（如 `8080`），选择 HTTP/HTTPS，点击 **绑定端口**。
-- 成功后显示外网访问 URL；支持解绑、查看隧道日志。
-- API：`GET /port-tunnels`、`POST /port-tunnels/bind`、`POST /port-tunnels/unbind`（均需管理员登录）。
-- 默认最多同时绑定 8 个端口，可通过环境变量 `MAX_PORT_TUNNELS` 调整。
-- 依赖运行目录下的 `cloudflared-linux`；若不存在会自动下载。
+---
 
-**注意：** 临时隧道地址可能随进程重启变化，不保证长期稳定，仅供测试使用。
+## 启动流程
 
+```
+npm start
+  └─ index.js 启动 Express
+  └─ entrypoint.sh（后台）
+       ├─ suoha.sh（后台）→ xray + cloudflared → v2ray.txt
+       └─ install-baota.sh（后台）→ 安装/重装宝塔 + baota-panel-tunnel
+  └─ 保活定时器
+       ├─ 梭哈：每 45 秒
+       └─ 宝塔：每 3 分钟
+```
 
+---
 
+## 页面与 API
 
-## 免责声明:
-* 本程序仅供学习了解, 非盈利目的，请于下载后 24 小时内删除, 不得用作任何商业用途, 文字、数据及图片均有所属版权, 如转载须注明来源。
-* 使用本程序必循遵守部署免责声明。使用本程序必循遵守部署服务器所在地、所在国家和用户所在国家的法律法规, 程序作者不对使用者任何不当行为负责。
+### 公开（无需登录）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/` | Welcome 欢迎页 |
+| GET | `/xxxooo` | 订阅链接纯文本（`v2ray.txt`） |
+| GET | `/healthz` | 进程存活 |
+| GET | `/readyz` | 进程 + Xray/Cloudflared 是否都在跑 |
+| POST | `/admin/login` | 登录（body: `username`, `password`） |
+| GET | `/admin/session` | 当前是否已登录 |
+
+### 需管理员登录
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/admin/panel` | Web 控制面板 HTML |
+| GET | `/suoha-status` | Xray / Argo 进程状态 |
+| POST | `/start-suoha` | 启动梭哈 |
+| POST | `/restart-suoha` | 重启梭哈 |
+| POST | `/stop-suoha` | 停止梭哈 |
+| GET | `/v2ray-info` | 订阅内容（JSON） |
+| GET | `/server-info` | 系统与出口信息 |
+| GET | `/logs` | 系统/进程/各日志文件 |
+| GET | `/baota-info` | 宝塔状态 + 登录信息 + 日志 |
+| POST | `/start-baota` | 后台执行 install-baota.sh |
+| GET | `/port-tunnels` | 已绑定端口隧道列表 |
+| POST | `/port-tunnels/bind` | `{ "port": 8080, "protocol": "http" }` |
+| POST | `/port-tunnels/unbind` | `{ "port": 8080 }` |
+| POST | `/admin/logout` | 退出登录 |
+
+---
+
+## 运行时文件（`ARGO_RUNTIME_DIR` 下）
+
+| 文件 / 目录 | 说明 |
+|-------------|------|
+| `suoha.sh` | 梭哈脚本（部署包自带，entrypoint 不覆盖） |
+| `suoha-start.log` | Node 侧启动梭哈的日志 |
+| `suoha.log` | suoha.sh 标准输出 |
+| `xray/` | Xray 二进制与配置 |
+| `xray.log` | Xray 日志 |
+| `cloudflared-linux` | Cloudflared 二进制（梭哈/宝塔/端口绑定共用） |
+| `argo.log` | 梭哈用 Cloudflared 日志 |
+| `v2ray.txt` | 生成的订阅链接 |
+| `baota-install.log` | 宝塔安装与启动日志 |
+| `baota-argo.log` | 宝塔管理口隧道日志 |
+| `baota-panel-url.txt` | 宝塔外网 + 本地地址、默认账号 |
+| `baota-default.txt` | `bt default` 或面板路径信息 |
+| `.baota-installed` | 安装成功标记（**仅当次容器生命周期有效**） |
+| `port-tunnels.json` | 端口绑定状态 |
+| `port-tunnel-{端口}.log` | 各端口隧道日志 |
+
+---
+
+## 梭哈（Xray + Argo）
+
+- `entrypoint.sh` 启动后后台执行 `suoha.sh`
+- 若 `xray/xray`、`cloudflared-linux` 已存在且可执行，**跳过下载**
+- 订阅地址：部署域名 + `/xxxooo`（**公开，无需登录**）
+- 管理面板「V2Ray 链接」标签页需登录后查看
+
+---
+
+## 宝塔面板
+
+- 非交互：`yes | bash install_panel.sh`
+- 安装到 **`/www`**（系统 overlay，Azure 上约 34GB，与 1GB 的 `wwwroot` 无关）
+- 安装完成后 Cloudflare Quick Tunnel 暴露 HTTPS 管理口（`trycloudflare.com`，临时地址）
+- **容器重启后面板丢失 → 自动重装**，不迁移到 `wwwroot`
+- 需要 **root** 与完整 Linux；标准 App Service 沙箱可能失败，建议自定义容器或 VM
+
+保活逻辑：必须 **面板进程 + 宝塔隧道 + 有效外网 URL** 三者同时满足才视为就绪，否则触发 `install-baota.sh`。
+
+---
+
+## 端口临时隧道
+
+管理面板 **端口绑定** 标签：为 `127.0.0.1:端口` 创建 Quick Tunnel。
+
+- 地址形如 `https://xxx.trycloudflare.com`，**重启后可能变化**
+- 不适合生产长期入口；长期固定域名需 Cloudflare Named Tunnel（见历史讨论）
+
+---
+
+## Azure 磁盘说明（参考）
+
+| 挂载点 | 典型容量 | 持久？ | 本项目用途 |
+|--------|----------|--------|------------|
+| `/home`（`wwwroot`） | ~1GB | 是（同实例） | 代码、订阅、日志、cloudflared |
+| `/` overlay | ~34GB | 否 | 宝塔 `/www` 安装（重启丢失） |
+| `/appsvctmp` | ~62GB | 临时 | 未使用（不做宝塔持久化） |
+
+---
+
+## 测试（`test/`）
+
+### 为什么仓库里有 `test/`？
+
+`test/` 是**开发用单元测试**，和源码一起提交到 Git，方便：
+
+- 本地改代码后跑 `npm test` 确认没改坏
+- CI（如 GitHub Actions）可选接入
+
+**不会在 Azure 生产环境自动执行**——`npm start` 只跑 `node index.js`，不跑测试。部署到 App Service 不会因为你 push 了 test 就在服务器上跑测试。
+
+### 如何运行
+
+```bash
+npm test
+# 等价于
+node test/run-tests.js
+```
+
+无需额外测试依赖，使用 Node 内置 `assert`。
+
+### 测试覆盖
+
+| 文件 | 内容 |
+|------|------|
+| `package.test.js` | Node 版本、依赖声明 |
+| `runtime.test.js` | `ARGO_RUNTIME_DIR` 解析 |
+| `service-manager.test.js` | 梭哈进程状态、保活、并发启动 |
+| `auth.test.js` | 登录、会话、鉴权中间件 |
+| `baota-manager.test.js` | 宝塔状态解析、安装标记 |
+| `port-tunnel-manager.test.js` | 端口校验、trycloudflare URL 解析 |
+| `ui-structure.test.js` | 控制面板 HTML 结构 |
+| `public-pages.test.js` | Welcome / 登录页结构 |
+
+### 若不想在部署包里带 test
+
+Azure Git 部署会整仓拉取，包含 `test/` 目录，但**仅占磁盘、不参与运行**。若需排除，可在 `.gitignore` 或部署脚本里删掉，**不建议**——体积很小，保留有利于后续维护。
+
+---
+
+## 目录结构
+
+```
+btblog/
+├── index.js              # Express 入口
+├── entrypoint.sh         # 启动 suoha + 宝塔脚本
+├── suoha.sh              # Xray + Cloudflared 梭哈
+├── install-baota.sh      # 宝塔安装 + 管理口隧道
+├── lib/
+│   ├── auth.js           # 管理员会话
+│   ├── baota-manager.js  # 宝塔任务与状态
+│   ├── port-tunnel-manager.js
+│   ├── service-manager.js
+│   └── runtime.js
+├── public/
+│   ├── welcome.html
+│   └── admin-login.html
+├── views/
+│   └── panel.html        # 管理面板（不静态暴露）
+├── test/                 # 单元测试（见上文）
+└── package.json
+```
+
+---
+
+## 免责声明
+
+* 本程序仅供学习了解，非盈利目的，请于下载后 24 小时内删除，不得用作任何商业用途。
+* 使用本程序须遵守部署服务器所在地、所在国家和用户所在国家的法律法规，程序作者不对使用者任何不当行为负责。
