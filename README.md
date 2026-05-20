@@ -39,6 +39,8 @@
 
 **注意：** 宝塔需要 root 权限及完整 Linux 环境。标准 Azure App Service 沙箱可能无法安装；建议使用带 root 的 VM / 自定义容器。首次安装可能耗时 10–30 分钟，请查看 `baota-install.log`。
 
+**容器重启：** 系统盘 `/www` 与 `/usr/bin/bt` 可能丢失。安装成功后会将宝塔目录迁移到运行目录下的 `baota-www-root` 并重建 `/www` 符号链接；重启后自动恢复。若持久化目录也不存在，将清除 `.baota-installed` 标记并触发重新安装。
+
 ## 端口临时隧道绑定
 
 管理面板 **端口绑定** 标签页可为本地任意端口创建 Cloudflare Quick Tunnel（`trycloudflare.com`）：

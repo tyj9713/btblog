@@ -3,7 +3,11 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { parseBaotaStatus } = require("../lib/baota-manager");
+const {
+  parseBaotaStatus,
+  clearStaleBaotaMarker,
+  isBaotaPanelPresent,
+} = require("../lib/baota-manager");
 
 async function testParseBaotaStatus() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "baota-test-"));
@@ -17,7 +21,21 @@ async function testParseBaotaStatus() {
 root 1 0 baota-panel-tunnel --url https://127.0.0.1:8888
 root 2 0 /www/server/panel/BT-Panel
 `,
-    { urlFile, installedMarker }
+    {
+      urlFile,
+      installedMarker,
+      fs: {
+        existsSync(filePath) {
+          if (filePath === installedMarker) {
+            return true;
+          }
+          if (String(filePath).endsWith("BT-Panel")) {
+            return true;
+          }
+          return false;
+        },
+      },
+    }
   );
 
   assert.equal(status.panelRunning, true);
@@ -49,8 +67,46 @@ root 1 0 baota-panel-tunnel --url https://127.0.0.1:8888
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
+async function testInstalledRequiresPanelFiles() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "baota-test-"));
+  const installedMarker = path.join(dir, ".baota-installed");
+  fs.writeFileSync(installedMarker, "", "utf8");
+
+  const status = parseBaotaStatus("", {
+    urlFile: path.join(dir, "missing-url.txt"),
+    installedMarker,
+    fs: {
+      existsSync(filePath) {
+        if (filePath === installedMarker) {
+          return true;
+        }
+        return false;
+      },
+    },
+  });
+
+  assert.equal(status.installed, false);
+  assert.equal(status.needsReinstall, true);
+
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+async function testClearStaleBaotaMarker() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "baota-test-"));
+  const marker = path.join(dir, ".baota-installed");
+  fs.writeFileSync(marker, "", "utf8");
+
+  const cleared = clearStaleBaotaMarker(marker, { warn() {} });
+  assert.equal(cleared, !isBaotaPanelPresent());
+  assert.equal(fs.existsSync(marker), isBaotaPanelPresent());
+
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
 module.exports = {
   testParseBaotaStatus,
   testParseBaotaStatusRequiresPanelAndTunnel,
+  testInstalledRequiresPanelFiles,
+  testClearStaleBaotaMarker,
 };
 
