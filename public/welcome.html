@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --ink: #1f2933;
+      --muted: #677382;
+      --line: #d8dee6;
+      --blue: #1769aa;
+      --soft-blue: #e8f2fb;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top right, rgba(23, 105, 170, 0.12), transparent 42%),
+        linear-gradient(180deg, rgba(23, 105, 170, 0.06), transparent 320px),
+        var(--bg);
+    }
+
+    .card {
+      width: min(640px, 100%);
+      padding: 40px 36px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+      box-shadow: 0 18px 40px rgba(31, 41, 51, 0.08);
+      text-align: center;
+    }
+
+    .badge {
+      display: inline-block;
+      margin-bottom: 18px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--soft-blue);
+      color: var(--blue);
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(2rem, 5vw, 2.8rem);
+      font-weight: 800;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 1rem;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 28px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 148px;
+      min-height: 44px;
+      padding: 0 18px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      font-size: 0.95rem;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: var(--blue);
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: #fff;
+      color: var(--blue);
+      border-color: rgba(23, 105, 170, 0.25);
+    }
+
+    .footer {
+      margin-top: 24px;
+      font-size: 0.86rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="badge">BTBLOG</div>
+    <h1>Welcome</h1>
+    <p>
+      服务已就绪。公开首页仅展示欢迎信息；管理操作、日志与宝塔信息需通过管理员入口访问。
+    </p>
+    <div class="actions">
+      <a class="btn btn-primary" href="/admin">管理员登录</a>
+      <a class="btn btn-secondary" href="/healthz">健康检查</a>
+    </div>
+    <p class="footer">Powered by btblog · Azure Web App</p>
+  </main>
+</body>
+</html>

@@ -7,10 +7,13 @@ const { promisify } = require("node:util");
 const fs = require("node:fs");
 const { ServiceManager, buildReadyResponse } = require("./lib/service-manager");
 const { BaotaManager } = require("./lib/baota-manager");
+const { PortTunnelManager } = require("./lib/port-tunnel-manager");
 const { resolveRuntimeDir } = require("./lib/runtime");
+const { createAuth } = require("./lib/auth");
 
 const execAsync = promisify(exec);
 const runtimeDir = resolveRuntimeDir(process.env, __dirname);
+const auth = createAuth();
 fs.mkdirSync(runtimeDir, { recursive: true });
 
 const serviceManager = new ServiceManager({
@@ -39,6 +42,15 @@ const baotaManager = new BaotaManager({
       ? generatedScript
       : path.join(__dirname, 'install-baota.sh');
   },
+});
+
+const portTunnelManager = new PortTunnelManager({
+  execAsync,
+  logger: console,
+  cwd: runtimeDir,
+  cloudflaredPath: runtimePath("cloudflared-linux"),
+  stateFile: runtimePath("port-tunnels.json"),
+  maxTunnels: Number(process.env.MAX_PORT_TUNNELS || 8),
 });
 
 function runtimePath(fileName) {
@@ -79,12 +91,24 @@ function readLogFile(fileName) {
 // 使用express.json中间件解析JSON请求体
 app.use(express.json());
 
-// 增加路由以提供HTML页面
-app.use(express.static('public'));
-
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+app.get("/", (_req, res) => {
+  res.sendFile(path.join(__dirname, "public", "welcome.html"));
 });
+
+app.get("/admin", auth.redirectIfAuthenticated, (_req, res) => {
+  res.sendFile(path.join(__dirname, "public", "admin-login.html"));
+});
+
+app.get("/admin/panel", auth.requirePageAuth, (_req, res) => {
+  res.sendFile(path.join(__dirname, "views", "panel.html"));
+});
+
+app.post("/admin/login", (req, res) => auth.handleLogin(req, res));
+app.post("/admin/logout", (req, res) => auth.handleLogout(req, res));
+app.get("/admin/session", (req, res) => auth.handleSession(req, res));
+
+// 静态资源（不含控制面板 HTML）
+app.use(express.static("public", { index: false }));
 
 // Azure App Service health check / Always On probe target.
 app.get('/healthz', (req, res) => {
@@ -109,7 +133,7 @@ app.get('/readyz', async (req, res) => {
 });
 
 // 获取suoha服务状态
-app.get('/suoha-status', async (req, res) => {
+app.get('/suoha-status', auth.requireAuth, async (req, res) => {
   try {
     res.json(await serviceManager.status());
   } catch (error) {
@@ -119,7 +143,7 @@ app.get('/suoha-status', async (req, res) => {
 });
 
 // 获取服务器信息
-app.get('/server-info', (req, res) => {
+app.get('/server-info', auth.requireAuth, (req, res) => {
   exec("cat /etc/os-release 2>&1; uname -a 2>&1; curl -s --max-time 8 https://speed.cloudflare.com/meta 2>&1", (err, stdout, stderr) => {
     const parts = [];
     if (stdout) parts.push(stdout.trim());
@@ -134,7 +158,7 @@ app.get('/server-info', (req, res) => {
 });
 
 // 获取v2ray链接信息
-app.get('/xxxooo', (req, res) => {
+app.get('/xxxooo', auth.requireAuth, (req, res) => {
   const v2rayPath = runtimePath('v2ray.txt');
   if (fs.existsSync(v2rayPath)) {
     fs.readFile(v2rayPath, 'utf8', (err, data) => {
@@ -150,7 +174,7 @@ app.get('/xxxooo', (req, res) => {
 });
 
 // 宝塔面板状态与外网隧道地址
-app.get('/baota-info', async (req, res) => {
+app.get('/baota-info', auth.requireAuth, async (req, res) => {
   try {
     const status = await baotaManager.status();
     const logs = baotaManager.getLogs();
@@ -166,7 +190,7 @@ app.get('/baota-info', async (req, res) => {
   }
 });
 
-app.post('/start-baota', async (req, res) => {
+app.post('/start-baota', auth.requireAuth, async (req, res) => {
   try {
     const alreadyStarting = baotaManager.isStarting();
     baotaManager.start("manual").catch((error) => {
@@ -184,8 +208,52 @@ app.post('/start-baota', async (req, res) => {
   }
 });
 
+// 端口临时隧道绑定
+app.get("/port-tunnels", auth.requireAuth, async (req, res) => {
+  try {
+    res.json(await portTunnelManager.list());
+  } catch (error) {
+    res.status(500).json({
+      error: "获取端口隧道列表失败",
+      message: error.message,
+    });
+  }
+});
+
+app.post("/port-tunnels/bind", auth.requireAuth, async (req, res) => {
+  try {
+    const result = await portTunnelManager.bind(req.body?.port, {
+      protocol: req.body?.protocol,
+    });
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    res.status(400).json({
+      ok: false,
+      message: error.message,
+    });
+  }
+});
+
+app.post("/port-tunnels/unbind", auth.requireAuth, async (req, res) => {
+  try {
+    const result = await portTunnelManager.unbind(req.body?.port);
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    res.status(400).json({
+      ok: false,
+      message: error.message,
+    });
+  }
+});
+
 // 获取v2ray链接信息
-app.get('/v2ray-info', (req, res) => {
+app.get('/v2ray-info', auth.requireAuth, (req, res) => {
   const v2rayPath = runtimePath('v2ray.txt');
   if (fs.existsSync(v2rayPath)) {
     fs.readFile(v2rayPath, 'utf8', (err, data) => {
@@ -201,7 +269,7 @@ app.get('/v2ray-info', (req, res) => {
 });
 
 // 启动suoha服务
-app.post('/start-suoha', async (req, res) => {
+app.post('/start-suoha', auth.requireAuth, async (req, res) => {
   console.log("开始启动suoha服务...");
   try {
     const alreadyStarting = serviceManager.isStarting();
@@ -223,7 +291,7 @@ app.post('/start-suoha', async (req, res) => {
 });
 
 // 重启suoha服务
-app.post('/restart-suoha', async (req, res) => {
+app.post('/restart-suoha', auth.requireAuth, async (req, res) => {
   console.log("开始重启suoha服务...");
   try {
     serviceManager.restart("manual").catch((error) => {
@@ -244,7 +312,7 @@ app.post('/restart-suoha', async (req, res) => {
 });
 
 // 停止suoha服务
-app.post('/stop-suoha', async (req, res) => {
+app.post('/stop-suoha', auth.requireAuth, async (req, res) => {
   console.log("开始停止suoha服务...");
   try {
     res.json(await serviceManager.stop());
@@ -255,7 +323,7 @@ app.post('/stop-suoha', async (req, res) => {
 });
 
 // 获取日志
-app.get('/logs', (req, res) => {
+app.get('/logs', auth.requireAuth, (req, res) => {
   try {
     // 检查系统和进程信息
     const sysInfo = runCommand("uname -a 2>&1; df -h 2>&1; ls -la 2>&1");
@@ -283,7 +351,7 @@ app.get('/logs', (req, res) => {
 });
 
 // 哪吒相关控制（保留原有代码，但默认不启用）
-app.post('/start-nezha', (req, res) => {
+app.post('/start-nezha', auth.requireAuth, (req, res) => {
   exec("bash nezha.sh", (err, stdout, stderr) => {
     if (err) {
       res.status(500).send({ message: "启动哪吒客户端失败", error: err });
@@ -293,7 +361,7 @@ app.post('/start-nezha', (req, res) => {
   });
 });
 
-app.post('/restart-nezha', (req, res) => {
+app.post('/restart-nezha', auth.requireAuth, (req, res) => {
   exec("pkill -9 nezha-agent && bash nezha.sh", (err, stdout, stderr) => {
     if (err) {
       res.status(500).send({ message: "重启哪吒客户端失败", error: err });
@@ -303,7 +371,7 @@ app.post('/restart-nezha', (req, res) => {
   });
 });
 
-app.post('/stop-nezha', (req, res) => {
+app.post('/stop-nezha', auth.requireAuth, (req, res) => {
   exec("pkill -9 nezha-agent", (err, stdout, stderr) => {
     if (err) {
       res.status(500).send({ message: "停止哪吒客户端失败", error: err });
@@ -356,4 +424,7 @@ exec(`bash ${shellQuote(path.join(__dirname, 'entrypoint.sh'))}`, {
 const port = process.env.PORT || 443;
 app.listen(port, () => {
   console.log(`Server listening on port ${port}!`);
+  if (!auth.isConfigured()) {
+    console.warn("ADMIN_PASSWORD 未配置：管理面板与受保护 API 不可用，请在应用服务环境变量中设置。");
+  }
 });

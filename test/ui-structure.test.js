@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const html = fs.readFileSync(
-  path.join(__dirname, "..", "public", "index.html"),
+  path.join(__dirname, "..", "views", "panel.html"),
   "utf8"
 );
 
@@ -17,7 +17,7 @@ async function testV2RayPanelStructure() {
 async function testMainPanelsAreInsideTabContent() {
   assert.match(
     html,
-    /<div class="tab-content" id="infoTabContent">[\s\S]*id="v2ray-content"[\s\S]*id="server-content"[\s\S]*id="baota-content"[\s\S]*id="logs-content"[\s\S]*<\/div>/
+    /<div class="tab-content" id="infoTabContent">[\s\S]*id="v2ray-content"[\s\S]*id="server-content"[\s\S]*id="baota-content"[\s\S]*id="port-tunnel-content"[\s\S]*id="logs-content"[\s\S]*<\/div>/
   );
 }
 
@@ -63,6 +63,21 @@ async function testTabsHaveLocalFallbackSwitcher() {
   assert.match(html, /setupTabs\("baotaSubTabs"\)/);
 }
 
+async function testPanelHasLogoutAction() {
+  assert.match(html, /id="logout-btn"/);
+  assert.match(html, /\/admin\/logout/);
+  assert.match(html, /window\.location\.href = "\/admin"/);
+}
+
+async function testPortTunnelPanelStructure() {
+  assert.match(html, /id="port-tunnel-content"/);
+  assert.match(html, /id="bind-port-btn"/);
+  assert.match(html, /id="port-input"/);
+  assert.match(html, /function\s+getPortTunnels\s*\(/);
+  assert.match(html, /\/port-tunnels\/bind/);
+  assert.match(html, /\/port-tunnels\/unbind/);
+}
+
 module.exports = {
   testV2RayPanelStructure,
   testMainPanelsAreInsideTabContent,
@@ -71,4 +86,6 @@ module.exports = {
   testBaotaPanelStructure,
   testFetchJsonAcceptsRequestOptions,
   testTabsHaveLocalFallbackSwitcher,
+  testPanelHasLogoutAction,
+  testPortTunnelPanelStructure,
 };

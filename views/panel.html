@@ -67,6 +67,26 @@
       white-space: nowrap;
     }
 
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .btn-logout {
+      min-height: 36px;
+      padding: 0 14px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      font-size: 0.86rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
     .dashboard-grid {
       display: grid;
       grid-template-columns: 360px minmax(0, 1fr);
@@ -242,6 +262,79 @@
       background: #172033;
     }
 
+    .port-bind-form {
+      display: grid;
+      grid-template-columns: minmax(120px, 180px) 120px auto;
+      gap: 10px;
+      margin-bottom: 16px;
+      align-items: center;
+    }
+
+    .port-bind-form input,
+    .port-bind-form select {
+      min-height: 42px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 0.95rem;
+      background: #fff;
+    }
+
+    .tunnel-list {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .tunnel-item {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .tunnel-item-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .tunnel-title {
+      font-weight: 700;
+    }
+
+    .tunnel-meta {
+      color: var(--muted);
+      font-size: 0.86rem;
+      word-break: break-all;
+    }
+
+    .tunnel-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn-small {
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #fff;
+      font-size: 0.84rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn-small.danger {
+      color: var(--red);
+      border-color: rgba(194, 65, 53, 0.25);
+    }
+
     @media (max-width: 860px) {
       .app-shell { width: min(100% - 20px, 640px); padding-top: 18px; }
       .topbar { display: block; }
@@ -252,6 +345,7 @@
       .panel-toolbar { align-items: stretch; flex-direction: column; }
       .btn-refresh { width: 100%; }
       .data-panel { max-height: 420px; }
+      .port-bind-form { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -262,7 +356,10 @@
         <h1>梭哈 / 宝塔控制面板</h1>
         <p class="subtitle">梭哈服务、宝塔面板安装与隧道、日志与保活状态</p>
       </div>
-      <div class="refresh-meta" id="last-refresh">等待首次刷新</div>
+      <div class="topbar-actions">
+        <div class="refresh-meta" id="last-refresh">等待首次刷新</div>
+        <button id="logout-btn" class="btn-logout" type="button">退出登录</button>
+      </div>
     </header>
 
     <section class="dashboard-grid">
@@ -333,6 +430,9 @@
               <button class="nav-link" id="baota-tab" data-bs-toggle="tab" data-bs-target="#baota-content" type="button" role="tab" aria-controls="baota-content" aria-selected="false">宝塔面板</button>
             </li>
             <li class="nav-item" role="presentation">
+              <button class="nav-link" id="port-tunnel-tab" data-bs-toggle="tab" data-bs-target="#port-tunnel-content" type="button" role="tab" aria-controls="port-tunnel-content" aria-selected="false">端口绑定</button>
+            </li>
+            <li class="nav-item" role="presentation">
               <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs-content" type="button" role="tab" aria-controls="logs-content" aria-selected="false">系统日志</button>
             </li>
           </ul>
@@ -377,6 +477,27 @@
                   <pre id="baota-tunnel-log" class="data-panel empty">加载中...</pre>
                 </div>
               </div>
+            </div>
+
+            <div class="tab-pane fade" id="port-tunnel-content" role="tabpanel" aria-labelledby="port-tunnel-tab" tabindex="0">
+              <div class="panel-toolbar">
+                <span class="panel-note">为本地端口创建 Cloudflare 临时隧道（trycloudflare.com），绑定后可通过外网 URL 访问。</span>
+                <button id="refresh-port-tunnels" class="btn btn-refresh">刷新列表</button>
+              </div>
+              <div class="port-bind-form">
+                <input id="port-input" type="number" min="1" max="65535" placeholder="本地端口，如 8080">
+                <select id="port-protocol">
+                  <option value="http">HTTP</option>
+                  <option value="https">HTTPS</option>
+                </select>
+                <button id="bind-port-btn" class="btn btn-control btn-start">绑定端口</button>
+              </div>
+              <div id="port-tunnel-list" class="tunnel-list">
+                <div class="tunnel-item">
+                  <div class="tunnel-meta">加载中...</div>
+                </div>
+              </div>
+              <pre id="port-tunnel-log" class="data-panel empty">选择端口后，这里会显示最近一条隧道日志。</pre>
             </div>
 
             <div class="tab-pane fade" id="logs-content" role="tabpanel" aria-labelledby="logs-tab" tabindex="0">
@@ -437,6 +558,11 @@
       const refreshLogsBtn = document.getElementById("refresh-logs");
       const refreshBaotaBtn = document.getElementById("refresh-baota");
       const startBaotaBtn = document.getElementById("start-baota-btn");
+      const refreshPortTunnelsBtn = document.getElementById("refresh-port-tunnels");
+      const bindPortBtn = document.getElementById("bind-port-btn");
+      const portInput = document.getElementById("port-input");
+      const portProtocol = document.getElementById("port-protocol");
+      const portTunnelList = document.getElementById("port-tunnel-list");
       const operationError = document.getElementById("operation-error");
       const operationResult = document.getElementById("operation-result");
       const lastRefresh = document.getElementById("last-refresh");
@@ -501,6 +627,10 @@
           data = text ? JSON.parse(text) : {};
         } catch (error) {
           throw new Error(`接口返回不是JSON: ${text.slice(0, 160)}`);
+        }
+        if (response.status === 401) {
+          window.location.href = "/admin";
+          throw new Error("未登录或会话已过期");
         }
         if (!response.ok) {
           throw new Error(data.message || data.error || `HTTP ${response.status}`);
@@ -580,6 +710,109 @@
           setPanelText("baota-install-log", message);
           setPanelText("baota-tunnel-log", message);
         }
+      }
+
+      function renderPortTunnelList(tunnels) {
+        if (!Array.isArray(tunnels) || tunnels.length === 0) {
+          portTunnelList.innerHTML = `
+            <div class="tunnel-item">
+              <div class="tunnel-meta">暂无已绑定端口。输入本地端口并点击「绑定端口」创建临时隧道。</div>
+            </div>
+          `;
+          return;
+        }
+
+        portTunnelList.innerHTML = tunnels.map((tunnel) => {
+          const statusText = tunnel.running && tunnel.url
+            ? "运行中"
+            : tunnel.status === "binding"
+              ? "绑定中"
+              : tunnel.status === "failed"
+                ? "失败"
+                : "已停止";
+          const statusColor = tunnel.running && tunnel.url ? "var(--green)" : "var(--red)";
+          const urlBlock = tunnel.url
+            ? `<div class="tunnel-meta">外网地址: ${tunnel.url}</div>`
+            : `<div class="tunnel-meta">外网地址: 等待生成...</div>`;
+          const errorBlock = tunnel.error
+            ? `<div class="tunnel-meta" style="color: var(--red);">${tunnel.error}</div>`
+            : "";
+
+          return `
+            <div class="tunnel-item" data-port="${tunnel.port}">
+              <div class="tunnel-item-head">
+                <div class="tunnel-title">端口 ${tunnel.port} · ${String(tunnel.protocol || "http").toUpperCase()}</div>
+                <span style="color:${statusColor}; font-weight:700;">${statusText}</span>
+              </div>
+              <div class="tunnel-meta">本地: ${tunnel.origin || `127.0.0.1:${tunnel.port}`}</div>
+              ${urlBlock}
+              ${errorBlock}
+              <div class="tunnel-actions">
+                ${tunnel.url ? `<a class="btn-small" href="${tunnel.url}" target="_blank" rel="noopener noreferrer">打开链接</a>` : ""}
+                <button class="btn-small" type="button" data-action="view-log" data-port="${tunnel.port}">查看日志</button>
+                <button class="btn-small danger" type="button" data-action="unbind" data-port="${tunnel.port}">解绑</button>
+              </div>
+            </div>
+          `;
+        }).join("");
+      }
+
+      async function getPortTunnels(options = {}) {
+        if (!options.silent) {
+          renderPortTunnelList([]);
+          portTunnelList.innerHTML = `
+            <div class="tunnel-item">
+              <div class="tunnel-meta">加载中...</div>
+            </div>
+          `;
+        }
+        try {
+          const data = await fetchJson("/port-tunnels");
+          renderPortTunnelList(data.tunnels || []);
+          if (!options.silent) {
+            markRefreshed();
+          }
+          return data;
+        } catch (error) {
+          portTunnelList.innerHTML = `
+            <div class="tunnel-item">
+              <div class="tunnel-meta">获取端口隧道失败: ${error.message}</div>
+            </div>
+          `;
+          throw error;
+        }
+      }
+
+      async function bindPort() {
+        const port = Number(portInput.value);
+        if (!Number.isInteger(port) || port < 1 || port > 65535) {
+          throw new Error("请输入 1-65535 之间的有效端口");
+        }
+
+        const data = await fetchJson("/port-tunnels/bind", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            port,
+            protocol: portProtocol.value,
+          }),
+        });
+
+        if (data.tunnel?.logTail) {
+          setPanelText("port-tunnel-log", data.tunnel.logTail);
+        }
+        await getPortTunnels({ silent: true });
+        return data;
+      }
+
+      async function unbindPort(port) {
+        const data = await fetchJson("/port-tunnels/unbind", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ port }),
+        });
+        await getPortTunnels({ silent: true });
+        return data;
       }
 
       async function updateServiceStatus() {
@@ -757,6 +990,65 @@
         });
       });
 
+      refreshPortTunnelsBtn.addEventListener("click", function() {
+        withButtonState(this, "刷新中...", getPortTunnels).finally(() => {
+          this.textContent = "刷新列表";
+        });
+      });
+
+      bindPortBtn.addEventListener("click", function() {
+        setMessage(operationError, "", "");
+        setMessage(operationResult, "", "");
+        withButtonState(this, "绑定中...", async () => {
+          setPanelText("port-tunnel-log", "正在创建临时隧道，请稍候...");
+          const data = await bindPort();
+          showResult(`${data.message}${data.tunnel?.url ? `：${data.tunnel.url}` : ""}`);
+        }).finally(() => {
+          this.textContent = "绑定端口";
+        });
+      });
+
+      portTunnelList.addEventListener("click", function(event) {
+        const button = event.target.closest("[data-action]");
+        if (!button) {
+          return;
+        }
+        const port = Number(button.dataset.port);
+        if (!Number.isInteger(port)) {
+          return;
+        }
+
+        if (button.dataset.action === "unbind") {
+          setMessage(operationError, "", "");
+          withButtonState(button, "解绑中...", async () => {
+            const data = await unbindPort(port);
+            showResult(data.message || `端口 ${port} 已解绑`);
+          }).finally(() => {
+            button.textContent = "解绑";
+          });
+          return;
+        }
+
+        if (button.dataset.action === "view-log") {
+          withButtonState(button, "读取中...", async () => {
+            const data = await getPortTunnels({ silent: true });
+            const tunnel = (data.tunnels || []).find((item) => item.port === port);
+            setPanelText("port-tunnel-log", tunnel?.logTail || "暂无该端口隧道日志");
+          }).finally(() => {
+            button.textContent = "查看日志";
+          });
+        }
+      });
+
+      document.getElementById("logout-btn").addEventListener("click", function() {
+        withButtonState(this, "退出中...", async () => {
+          const data = await fetchJson("/admin/logout", { method: "POST" });
+          window.location.href = data.redirect || "/";
+        }).finally(() => {
+          this.textContent = "退出登录";
+        });
+      });
+
       setupTabs("infoTabs");
       setupTabs("logsSubTabs");
       setupTabs("baotaSubTabs");
@@ -764,9 +1056,11 @@
       getServerInfo();
       getV2RayInfo();
       getBaotaInfo();
+      getPortTunnels();
       getLogs();
       setInterval(updateServiceStatus, 10000);
       setInterval(getBaotaInfo, 30000);
+      setInterval(() => getPortTunnels({ silent: true }), 15000);
     });
   </script>
 </body>

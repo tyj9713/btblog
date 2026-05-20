@@ -3,6 +3,9 @@ const suites = [
   require("./runtime.test"),
   require("./service-manager.test"),
   require("./ui-structure.test"),
+  require("./public-pages.test"),
+  require("./auth.test"),
+  require("./port-tunnel-manager.test"),
   require("./baota-manager.test"),
 ];
 

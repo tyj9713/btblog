@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理员登录</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --ink: #1f2933;
+      --muted: #677382;
+      --line: #d8dee6;
+      --blue: #1769aa;
+      --red: #c24135;
+      --soft-blue: #e8f2fb;
+      --soft-red: #fbebe9;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        linear-gradient(180deg, rgba(23, 105, 170, 0.08), transparent 280px),
+        var(--bg);
+    }
+
+    .card {
+      width: min(420px, 100%);
+      padding: 32px 28px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+      box-shadow: 0 16px 36px rgba(31, 41, 51, 0.08);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.6rem;
+      font-weight: 800;
+    }
+
+    .subtitle {
+      margin: 0 0 24px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.6;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    input {
+      width: 100%;
+      min-height: 42px;
+      margin-bottom: 16px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 0.95rem;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: rgba(23, 105, 170, 0.45);
+      box-shadow: 0 0 0 3px rgba(23, 105, 170, 0.12);
+    }
+
+    .btn {
+      width: 100%;
+      min-height: 44px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--blue);
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
+    .message {
+      display: none;
+      margin-top: 14px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .message.error {
+      display: block;
+      color: var(--red);
+      background: var(--soft-red);
+      border: 1px solid rgba(194, 65, 53, 0.22);
+    }
+
+    .message.info {
+      display: block;
+      color: var(--blue);
+      background: var(--soft-blue);
+      border: 1px solid rgba(23, 105, 170, 0.2);
+    }
+
+    .back-link {
+      display: inline-block;
+      margin-top: 18px;
+      color: var(--blue);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>管理员登录</h1>
+    <p class="subtitle">登录后可访问梭哈 / 宝塔控制面板。密码通过应用服务环境变量 <code>ADMIN_PASSWORD</code> 配置。</p>
+
+    <form id="login-form">
+      <label for="username">用户名</label>
+      <input id="username" name="username" type="text" autocomplete="username" value="admin" required>
+
+      <label for="password">密码</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+      <button id="login-btn" class="btn" type="submit">登录</button>
+    </form>
+
+    <div id="message" class="message"></div>
+    <a class="back-link" href="/">返回欢迎页</a>
+  </main>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const form = document.getElementById("login-form");
+      const message = document.getElementById("message");
+      const loginBtn = document.getElementById("login-btn");
+      const params = new URLSearchParams(window.location.search);
+
+      function showMessage(type, text) {
+        message.className = type ? `message ${type}` : "message";
+        message.textContent = text || "";
+      }
+
+      if (params.get("error") === "not-configured") {
+        showMessage("error", "未配置 ADMIN_PASSWORD，请先在 Azure 应用服务环境变量中设置管理员密码。");
+      }
+
+      fetch("/admin/session", { cache: "no-store" })
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.authenticated) {
+            window.location.href = "/admin/panel";
+          }
+        })
+        .catch(() => {});
+
+      form.addEventListener("submit", async function(event) {
+        event.preventDefault();
+        showMessage("", "");
+        loginBtn.disabled = true;
+        loginBtn.textContent = "登录中...";
+
+        try {
+          const response = await fetch("/admin/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              username: document.getElementById("username").value.trim(),
+              password: document.getElementById("password").value,
+            }),
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.message || "登录失败");
+          }
+          window.location.href = data.redirect || "/admin/panel";
+        } catch (error) {
+          showMessage("error", error.message || "登录失败");
+        } finally {
+          loginBtn.disabled = false;
+          loginBtn.textContent = "登录";
+        }
+      });
+    });
+  </script>
+</body>
+</html>
