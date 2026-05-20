@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>梭哈服务控制面板</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --ink: #1f2933;
+      --muted: #677382;
+      --line: #d8dee6;
+      --green: #198754;
+      --red: #c24135;
+      --amber: #b7791f;
+      --blue: #1769aa;
+      --soft-blue: #e8f2fb;
+      --soft-green: #e8f5ee;
+      --soft-red: #fbebe9;
+      --code: #111827;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(180deg, rgba(23, 105, 170, 0.08), transparent 280px),
+        var(--bg);
+      color: var(--ink);
+      font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+
+    .app-shell {
+      width: min(1180px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 24px 0 36px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.45rem, 3vw, 2.15rem);
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .refresh-meta {
+      color: var(--muted);
+      font-size: 0.86rem;
+      white-space: nowrap;
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 360px minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 10px 24px rgba(31, 41, 51, 0.07);
+    }
+
+    .card + .card { margin-top: 16px; }
+
+    .card-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fafbfc;
+      border-radius: 8px 8px 0 0 !important;
+    }
+
+    .card-title {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .card-body { padding: 16px; }
+
+    .status-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .status-row {
+      display: grid;
+      grid-template-columns: 18px 1fr auto;
+      align-items: center;
+      gap: 10px;
+      min-height: 38px;
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .status-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: var(--muted);
+      box-shadow: 0 0 0 4px rgba(103, 115, 130, 0.12);
+    }
+
+    .status-running {
+      background: var(--green);
+      box-shadow: 0 0 0 4px rgba(25, 135, 84, 0.14);
+    }
+
+    .status-stopped {
+      background: var(--red);
+      box-shadow: 0 0 0 4px rgba(194, 65, 53, 0.14);
+    }
+
+    .status-label { color: var(--muted); }
+    .status-value { font-weight: 700; text-align: right; }
+
+    .action-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    .btn {
+      min-height: 42px;
+      border-radius: 8px;
+      font-weight: 700;
+    }
+
+    .btn-control {
+      border: 1px solid transparent;
+      color: #fff;
+    }
+
+    .btn-start { background: var(--green); }
+    .btn-restart { background: var(--amber); }
+    .btn-stop { background: var(--red); }
+    .btn-refresh { background: var(--blue); color: #fff; }
+
+    .message {
+      display: none;
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      font-size: 0.92rem;
+    }
+
+    .message.error {
+      display: block;
+      color: var(--red);
+      background: var(--soft-red);
+      border: 1px solid rgba(194, 65, 53, 0.22);
+    }
+
+    .message.info {
+      display: block;
+      color: var(--blue);
+      background: var(--soft-blue);
+      border: 1px solid rgba(23, 105, 170, 0.2);
+    }
+
+    .nav-tabs {
+      gap: 6px;
+      border-bottom: 0;
+      flex-wrap: wrap;
+    }
+
+    .nav-tabs .nav-link,
+    .nav-pills .nav-link {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      background: #fff;
+      font-weight: 700;
+      min-height: 38px;
+    }
+
+    .nav-tabs .nav-link.active,
+    .nav-pills .nav-link.active {
+      color: var(--blue);
+      background: var(--soft-blue);
+      border-color: rgba(23, 105, 170, 0.35);
+    }
+
+    .tab-content { padding-top: 14px; }
+
+    .panel-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .panel-note {
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .data-panel {
+      width: 100%;
+      min-height: 220px;
+      max-height: 520px;
+      margin: 0;
+      padding: 14px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--code);
+      color: #dbeafe;
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: 0.86rem;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .data-panel.empty {
+      color: #8da2b8;
+      background: #172033;
+    }
+
+    @media (max-width: 860px) {
+      .app-shell { width: min(100% - 20px, 640px); padding-top: 18px; }
+      .topbar { display: block; }
+      .refresh-meta { margin-top: 8px; white-space: normal; }
+      .dashboard-grid { grid-template-columns: 1fr; }
+      .status-row { grid-template-columns: 18px 1fr; }
+      .status-value { grid-column: 2; text-align: left; }
+      .panel-toolbar { align-items: stretch; flex-direction: column; }
+      .btn-refresh { width: 100%; }
+      .data-panel { max-height: 420px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>梭哈服务控制面板</h1>
+        <p class="subtitle">Azure Web App 运行状态、节点链接和日志查看</p>
+      </div>
+      <div class="refresh-meta" id="last-refresh">等待首次刷新</div>
+    </header>
+
+    <section class="dashboard-grid">
+      <aside>
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">服务状态</h2>
+          </div>
+          <div class="card-body">
+            <div class="status-list">
+              <div class="status-row">
+                <div class="status-indicator status-stopped" id="xray-status-indicator"></div>
+                <span class="status-label">Xray</span>
+                <span id="xray-status" class="status-value">检查中</span>
+              </div>
+              <div class="status-row">
+                <div class="status-indicator status-stopped" id="argo-status-indicator"></div>
+                <span class="status-label">Argo</span>
+                <span id="argo-status" class="status-value">检查中</span>
+              </div>
+              <div class="status-row">
+                <div class="status-indicator status-stopped" id="overall-status-indicator"></div>
+                <span class="status-label">整体状态</span>
+                <span id="overall-status" class="status-value">检查中</span>
+              </div>
+            </div>
+            <div id="operation-error" class="message"></div>
+            <div id="operation-result" class="message"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">操作</h2>
+          </div>
+          <div class="card-body">
+            <div class="action-grid">
+              <button id="start-btn" class="btn btn-control btn-start">启动服务</button>
+              <button id="restart-btn" class="btn btn-control btn-restart">重启服务</button>
+              <button id="stop-btn" class="btn btn-control btn-stop">停止服务</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="card">
+        <div class="card-header">
+          <ul class="nav nav-tabs" id="infoTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="v2ray-tab" data-bs-toggle="tab" data-bs-target="#v2ray-content" type="button" role="tab" aria-controls="v2ray-content" aria-selected="true">V2Ray 链接</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="server-tab" data-bs-toggle="tab" data-bs-target="#server-content" type="button" role="tab" aria-controls="server-content" aria-selected="false">服务器信息</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs-content" type="button" role="tab" aria-controls="logs-content" aria-selected="false">系统日志</button>
+            </li>
+          </ul>
+        </div>
+        <div class="card-body">
+          <div class="tab-content" id="infoTabContent">
+            <div class="tab-pane fade show active" id="v2ray-content" role="tabpanel" aria-labelledby="v2ray-tab" tabindex="0">
+              <div class="panel-toolbar">
+                <span class="panel-note">启动成功后会显示当前可用链接。</span>
+                <button id="refresh-v2ray" class="btn btn-refresh">刷新链接</button>
+              </div>
+              <pre id="v2ray-info" class="data-panel empty">加载中...</pre>
+            </div>
+
+            <div class="tab-pane fade" id="server-content" role="tabpanel" aria-labelledby="server-tab" tabindex="0">
+              <div class="panel-toolbar">
+                <span class="panel-note">系统版本、内核和网络出口信息。</span>
+                <button id="refresh-server" class="btn btn-refresh">刷新服务器信息</button>
+              </div>
+              <pre id="server-info" class="data-panel empty">加载中...</pre>
+            </div>
+
+            <div class="tab-pane fade" id="logs-content" role="tabpanel" aria-labelledby="logs-tab" tabindex="0">
+              <div class="panel-toolbar">
+                <span class="panel-note">运行目录、进程和 Argo 日志。</span>
+                <button id="refresh-logs" class="btn btn-refresh">刷新日志</button>
+              </div>
+              <ul class="nav nav-pills mb-3" id="logsSubTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link active" id="system-logs-tab" data-bs-toggle="pill" data-bs-target="#system-logs" type="button" role="tab" aria-controls="system-logs" aria-selected="true">系统信息</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link" id="process-logs-tab" data-bs-toggle="pill" data-bs-target="#process-logs" type="button" role="tab" aria-controls="process-logs" aria-selected="false">进程信息</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link" id="files-logs-tab" data-bs-toggle="pill" data-bs-target="#files-logs" type="button" role="tab" aria-controls="files-logs" aria-selected="false">文件信息</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link" id="argo-logs-tab" data-bs-toggle="pill" data-bs-target="#argo-logs" type="button" role="tab" aria-controls="argo-logs" aria-selected="false">Argo日志</button>
+                </li>
+              </ul>
+              <div class="tab-content" id="logsSubTabContent">
+                <div class="tab-pane fade show active" id="system-logs" role="tabpanel" aria-labelledby="system-logs-tab" tabindex="0">
+                  <pre id="system-logs-content" class="data-panel empty">加载中...</pre>
+                </div>
+                <div class="tab-pane fade" id="process-logs" role="tabpanel" aria-labelledby="process-logs-tab" tabindex="0">
+                  <pre id="process-logs-content" class="data-panel empty">加载中...</pre>
+                </div>
+                <div class="tab-pane fade" id="files-logs" role="tabpanel" aria-labelledby="files-logs-tab" tabindex="0">
+                  <pre id="files-logs-content" class="data-panel empty">加载中...</pre>
+                </div>
+                <div class="tab-pane fade" id="argo-logs" role="tabpanel" aria-labelledby="argo-logs-tab" tabindex="0">
+                  <pre id="argo-logs-content" class="data-panel empty">加载中...</pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const startBtn = document.getElementById("start-btn");
+      const restartBtn = document.getElementById("restart-btn");
+      const stopBtn = document.getElementById("stop-btn");
+      const refreshV2RayBtn = document.getElementById("refresh-v2ray");
+      const refreshServerBtn = document.getElementById("refresh-server");
+      const refreshLogsBtn = document.getElementById("refresh-logs");
+      const operationError = document.getElementById("operation-error");
+      const operationResult = document.getElementById("operation-result");
+      const lastRefresh = document.getElementById("last-refresh");
+
+      function setMessage(element, type, message) {
+        element.className = type ? `message ${type}` : "message";
+        element.textContent = message || "";
+      }
+
+      function setupTabs(tabListId) {
+        const tabList = document.getElementById(tabListId);
+        if (!tabList) return;
+
+        tabList.querySelectorAll("[data-bs-target]").forEach((button) => {
+          button.addEventListener("click", function(event) {
+            event.preventDefault();
+            const target = document.querySelector(this.getAttribute("data-bs-target"));
+            if (!target) return;
+
+            const container = target.parentElement;
+            tabList.querySelectorAll("[data-bs-target]").forEach((item) => {
+              item.classList.remove("active");
+              item.setAttribute("aria-selected", "false");
+            });
+            container.querySelectorAll(":scope > .tab-pane").forEach((pane) => {
+              pane.classList.remove("show", "active");
+            });
+
+            this.classList.add("active");
+            this.setAttribute("aria-selected", "true");
+            target.classList.add("show", "active");
+          });
+        });
+      }
+
+      function showError(message) {
+        setMessage(operationError, "error", message);
+        setTimeout(() => setMessage(operationError, "", ""), 10000);
+      }
+
+      function showResult(message) {
+        setMessage(operationResult, "info", message);
+        setTimeout(() => setMessage(operationResult, "", ""), 10000);
+      }
+
+      function setPanelText(id, text) {
+        const panel = document.getElementById(id);
+        const value = String(text || "").trim() || "暂无数据";
+        panel.textContent = value;
+        panel.classList.toggle("empty", value === "暂无数据" || value.includes("失败"));
+      }
+
+      function markRefreshed() {
+        lastRefresh.textContent = `最近刷新 ${new Date().toLocaleTimeString()}`;
+      }
+
+      async function fetchJson(url, options = {}) {
+        const response = await fetch(url, { ...options, cache: "no-store" });
+        const text = await response.text();
+        let data = {};
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch (error) {
+          throw new Error(`接口返回不是JSON: ${text.slice(0, 160)}`);
+        }
+        if (!response.ok) {
+          throw new Error(data.message || data.error || `HTTP ${response.status}`);
+        }
+        return data;
+      }
+
+      function setStatus(indicatorId, valueId, running, runningText, stoppedText) {
+        const indicator = document.getElementById(indicatorId);
+        const value = document.getElementById(valueId);
+        indicator.className = `status-indicator ${running ? "status-running" : "status-stopped"}`;
+        value.textContent = running ? runningText : stoppedText;
+        value.style.color = running ? "var(--green)" : "var(--red)";
+      }
+
+      async function updateServiceStatus() {
+        try {
+          const data = await fetchJson('/suoha-status');
+          setStatus("xray-status-indicator", "xray-status", data.xrayRunning, "运行中", "已停止");
+          setStatus("argo-status-indicator", "argo-status", data.argoRunning, "运行中", "已停止");
+          setStatus("overall-status-indicator", "overall-status", data.bothRunning, "正常", "未就绪");
+          markRefreshed();
+        } catch (error) {
+          setStatus("xray-status-indicator", "xray-status", false, "运行中", "状态失败");
+          setStatus("argo-status-indicator", "argo-status", false, "运行中", "状态失败");
+          setStatus("overall-status-indicator", "overall-status", false, "正常", "检查失败");
+          showError("获取服务状态失败: " + error.message);
+        }
+      }
+
+      async function getServerInfo() {
+        setPanelText("server-info", "加载中...");
+        try {
+          const data = await fetchJson('/server-info');
+          setPanelText("server-info", data.info || data.error || "暂无服务器信息");
+          markRefreshed();
+        } catch (error) {
+          setPanelText("server-info", "获取服务器信息失败: " + error.message);
+        }
+      }
+
+      async function getV2RayInfo() {
+        setPanelText("v2ray-info", "加载中...");
+        try {
+          const data = await fetchJson('/v2ray-info');
+          setPanelText("v2ray-info", data.content || data.error || "暂无链接信息");
+          markRefreshed();
+        } catch (error) {
+          setPanelText("v2ray-info", "获取V2Ray链接失败: " + error.message);
+        }
+      }
+
+      async function getLogs() {
+        setPanelText("system-logs-content", "加载中...");
+        setPanelText("process-logs-content", "加载中...");
+        setPanelText("files-logs-content", "加载中...");
+        setPanelText("argo-logs-content", "加载中...");
+        try {
+          const data = await fetchJson('/logs');
+          setPanelText("system-logs-content", data.systemInfo || "暂无系统信息");
+          setPanelText("process-logs-content", data.processes || "暂无进程信息");
+          setPanelText("files-logs-content", [
+            data.runtimeDir ? `运行目录: ${data.runtimeDir}` : "",
+            data.fileStatus || "暂无文件信息",
+          ].filter(Boolean).join("\n\n"));
+          setPanelText("argo-logs-content", [
+            "===== suoha-start.log =====",
+            data.startLog || "暂无启动日志",
+            "===== suoha.log =====",
+            data.suohaLog || "暂无脚本日志",
+            "===== xray.log =====",
+            data.xrayLog || "暂无Xray日志",
+            "===== argo.log =====",
+            data.argoLog || "暂无Argo日志",
+          ].join("\n"));
+          markRefreshed();
+        } catch (error) {
+          const message = "获取日志失败: " + error.message;
+          setPanelText("system-logs-content", message);
+          setPanelText("process-logs-content", message);
+          setPanelText("files-logs-content", message);
+          setPanelText("argo-logs-content", message);
+        }
+      }
+
+      function withButtonState(button, label, work) {
+        button.disabled = true;
+        button.textContent = label;
+        return Promise.resolve(work())
+          .catch((error) => {
+            showError(error.message || String(error));
+          })
+          .finally(() => {
+            button.disabled = false;
+          });
+      }
+
+      startBtn.addEventListener("click", function() {
+        setMessage(operationError, "", "");
+        setMessage(operationResult, "", "");
+        withButtonState(this, "启动中...", async () => {
+          this.textContent = "启动中...";
+          const data = await fetchJson('/start-suoha', { method: 'POST' });
+          showResult(`${data.message}，请稍后查看状态和日志。`);
+          await Promise.all([updateServiceStatus(), getV2RayInfo(), getLogs()]);
+        }).finally(() => {
+          this.textContent = "启动服务";
+        });
+      });
+
+      restartBtn.addEventListener("click", function() {
+        setMessage(operationError, "", "");
+        setMessage(operationResult, "", "");
+        withButtonState(this, "重启中...", async () => {
+          const data = await fetchJson('/restart-suoha', { method: 'POST' });
+          showResult(`${data.message}，请稍后查看状态和日志。`);
+          await Promise.all([updateServiceStatus(), getV2RayInfo(), getLogs()]);
+        }).finally(() => {
+          this.textContent = "重启服务";
+        });
+      });
+
+      stopBtn.addEventListener("click", function() {
+        setMessage(operationError, "", "");
+        setMessage(operationResult, "", "");
+        withButtonState(this, "停止中...", async () => {
+          const data = await fetchJson('/stop-suoha', { method: 'POST' });
+          showResult(data.message || "服务停止成功");
+          await Promise.all([updateServiceStatus(), getLogs()]);
+        }).finally(() => {
+          this.textContent = "停止服务";
+        });
+      });
+
+      refreshV2RayBtn.addEventListener("click", function() {
+        withButtonState(this, "刷新中...", getV2RayInfo).finally(() => {
+          this.textContent = "刷新链接";
+        });
+      });
+
+      refreshServerBtn.addEventListener("click", function() {
+        withButtonState(this, "刷新中...", getServerInfo).finally(() => {
+          this.textContent = "刷新服务器信息";
+        });
+      });
+
+      refreshLogsBtn.addEventListener("click", function() {
+        withButtonState(this, "刷新中...", getLogs).finally(() => {
+          this.textContent = "刷新日志";
+        });
+      });
+
+      setupTabs("infoTabs");
+      setupTabs("logsSubTabs");
+      updateServiceStatus();
+      getServerInfo();
+      getV2RayInfo();
+      getLogs();
+      setInterval(updateServiceStatus, 10000);
+    });
+  </script>
+</body>
+</html>
