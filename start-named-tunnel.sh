@@ -19,11 +19,13 @@ log() {
 stop_old() {
   pkill -9 -f 'btblog-named-tunnel' >/dev/null 2>&1 || true
   pkill -9 -f 'cloudflared-linux tunnel run' >/dev/null 2>&1 || true
+  pkill -9 -f 'cloudflared-linux tunnel .*run' >/dev/null 2>&1 || true
   pkill -9 -f './cloudflared-linux tunnel run' >/dev/null 2>&1 || true
+  pkill -9 -f './cloudflared-linux tunnel .*run' >/dev/null 2>&1 || true
 }
 
 is_running() {
-  pgrep -f 'btblog-named-tunnel' >/dev/null 2>&1 || pgrep -f 'cloudflared-linux tunnel run' >/dev/null 2>&1
+  pgrep -f 'btblog-named-tunnel' >/dev/null 2>&1 || pgrep -f 'cloudflared-linux tunnel .*run' >/dev/null 2>&1
 }
 
 if [ -z "$TOKEN" ] && [ "${LOCAL_CONFIG,,}" != "true" ]; then

@@ -1,4 +1,7 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 
 const {
   decodeTunnelToken,
@@ -6,6 +9,7 @@ const {
   buildPortHostname,
   buildIngressRules,
   renderConfigYaml,
+  buildTunnelArtifacts,
   normalizeHostname,
 } = require("../lib/cloudflare-tunnel-config");
 
@@ -62,6 +66,58 @@ async function testResolveAzureAppSettingFallback() {
   assert.equal(settings.nodeHostname, "node.hk.example.com");
 }
 
+async function testOpaqueTokenEnablesRemoteConnector() {
+  const settings = resolveTunnelSettings({
+    CLOUDFLARE_TUNNEL_TOKEN: "opaque-dashboard-token",
+    CLOUDFLARE_TUNNEL_REMOTE_CONFIG: "true",
+  });
+
+  assert.equal(settings.enabled, true);
+  assert.equal(settings.credentials, null);
+  assert.equal(settings.useRemoteConfig, true);
+}
+
+async function testRemoteConfigDoesNotRequireLocalCredentialsOrHostname() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "named-tunnel-remote-"));
+  try {
+    const artifacts = buildTunnelArtifacts({
+      runtimeDir: dir,
+      env: {
+        CLOUDFLARE_TUNNEL_TOKEN: "opaque-dashboard-token",
+        CLOUDFLARE_TUNNEL_REMOTE_CONFIG: "true",
+      },
+      bindings: [],
+    });
+
+    assert.equal(artifacts.enabled, true);
+    assert.equal(artifacts.configYaml, "");
+    assert.equal(fs.existsSync(path.join(dir, "cloudflared-credentials.json")), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+async function testLocalConfigStillRequiresCredentials() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "named-tunnel-local-"));
+  try {
+    assert.throws(
+      () =>
+        buildTunnelArtifacts({
+          runtimeDir: dir,
+          env: {
+            CLOUDFLARE_TUNNEL_TOKEN: "opaque-dashboard-token",
+            CLOUDFLARE_TUNNEL_LOCAL_CONFIG: "true",
+            TUNNEL_NODE_HOSTNAME: "node.example.com",
+          },
+          bindings: [],
+        }),
+      /CLOUDFLARE_TUNNEL_TOKEN 无效/
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 async function testBuildPortHostname() {
   const settings = resolveTunnelSettings({
     TUNNEL_PORT_DOMAIN: "example.com",
@@ -106,6 +162,9 @@ module.exports = {
   testDecodeTunnelToken,
   testResolveTunnelSettings,
   testResolveAzureAppSettingFallback,
+  testOpaqueTokenEnablesRemoteConnector,
+  testRemoteConfigDoesNotRequireLocalCredentialsOrHostname,
+  testLocalConfigStillRequiresCredentials,
   testBuildPortHostname,
   testBuildIngressRules,
   testRenderConfigYaml,
