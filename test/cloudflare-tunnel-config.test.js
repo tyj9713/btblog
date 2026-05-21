@@ -47,6 +47,8 @@ async function testResolveTunnelSettings() {
   assert.equal(settings.btHostname, "bt.example.com");
   assert.equal(settings.xrayPort, 10086);
   assert.equal(settings.btPort, 8888);
+  assert.equal(settings.useRemoteConfig, true);
+  assert.equal(settings.useLocalConfig, false);
 }
 
 async function testBuildPortHostname() {

@@ -155,6 +155,19 @@ app.get("/tunnel-status", auth.requireAuth, async (req, res) => {
   }
 });
 
+app.post("/tunnel-sync", auth.requireAuth, async (req, res) => {
+  try {
+    const result = await cloudflareTunnelManager.sync("manual");
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      message: error.message,
+      logTail: cloudflareTunnelManager.readLogTail(),
+    });
+  }
+});
+
 // 获取suoha服务状态
 app.get('/suoha-status', auth.requireAuth, async (req, res) => {
   try {
