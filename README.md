@@ -76,6 +76,25 @@ npm start
 |------|------|------|
 | `MAX_PORT_TUNNELS` | `8` | 管理面板「端口绑定」最多同时绑定的端口数 |
 
+### Cloudflare 固定隧道（Named Tunnel）
+
+设置 `CLOUDFLARE_TUNNEL_TOKEN` 后启用。程序会统一启动 **一个** `cloudflared` 进程，节点 / 宝塔 / 端口绑定共用，不再使用 `trycloudflare.com` 临时地址。
+
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `CLOUDFLARE_TUNNEL_TOKEN` | 无 | Cloudflare 控制台创建隧道后给出的 `cloudflared tunnel run --token ...` 中的 token |
+| `CLOUDFLARE_TUNNEL_CREDENTIALS_FILE` | 无 | 可选，直接指向 credentials JSON；未设置时从 token 自动解析 |
+| `CLOUDFLARE_TUNNEL_REMOTE_CONFIG` | `false` | 设为 `true` 时仅执行 `tunnel run --token`，路由完全由 Cloudflare 控制台 Remote config 管理 |
+| `TUNNEL_NODE_HOSTNAME` | 无 | 节点固定域名，如 `node.example.com` |
+| `TUNNEL_BT_HOSTNAME` | 无 | 宝塔固定域名，如 `bt.example.com` |
+| `TUNNEL_PORT_DOMAIN` | 无 | 端口绑定域名后缀；绑定 8080 时默认生成 `p8080.example.com` |
+| `TUNNEL_PORT_HOST_PREFIX` | `p` | 端口子域名前缀，最终为 `{prefix}{port}.{TUNNEL_PORT_DOMAIN}` |
+| `TUNNEL_PORT_HOST_TEMPLATE` | 无 | 自定义模板，如 `{port}.apps.example.com` |
+| `XRAY_PORT` | `10086` | Xray 固定监听端口（不再随机） |
+| `BT_PORT` | `8888` | 宝塔面板端口回退值；优先读取 `/www/server/panel/data/port.pl` |
+
+未设置 `CLOUDFLARE_TUNNEL_TOKEN` 时，仍回退到 Quick Tunnel（临时 `trycloudflare.com`）模式。
+
 ### Node 版本
 
 | 变量 | 要求 |
@@ -176,12 +195,40 @@ npm start
 
 ---
 
-## 端口临时隧道
+## 端口隧道
 
-管理面板 **端口绑定** 标签：为 `127.0.0.1:端口` 创建 Quick Tunnel。
+管理面板 **端口绑定** 标签：为 `127.0.0.1:端口` 暴露外网访问。
 
-- 地址形如 `https://xxx.trycloudflare.com`，**重启后可能变化**
-- 不适合生产长期入口；长期固定域名需 Cloudflare Named Tunnel（见历史讨论）
+- **未配置 token**：Quick Tunnel，地址形如 `https://xxx.trycloudflare.com`，重启后可能变化
+- **已配置 `CLOUDFLARE_TUNNEL_TOKEN`**：固定域名，形如 `https://p8080.example.com`，绑定/解绑时程序自动更新本地 `cloudflared-config.yml`
+
+---
+
+## Cloudflare 固定隧道配置步骤
+
+> **Tunnels 和 Zero Trust 是同一套 Cloudflare Tunnel。** 新版入口在网站 Dashboard 的 **Networks → Connectors → Cloudflare Tunnels**；旧入口在 Zero Trust → Networks → Tunnels，两者等价。
+
+1. 在 Cloudflare 添加并托管你的域名（如 `example.com`）
+2. **Networks → Connectors → Cloudflare Tunnels → Create**，类型选 Cloudflared
+3. 创建完成后复制安装命令里的 **token**（`eyJhIjoi...` 整段）
+4. 在隧道详情页记下 **Tunnel ID**（UUID）
+5. 到 **DNS → Records** 添加 CNAME（程序默认用本地 ingress，**不必**在隧道里逐条配 Public Hostname）：
+   - `node.example.com` → `<tunnel-id>.cfargotunnel.com`
+   - `bt.example.com` → `<tunnel-id>.cfargotunnel.com`
+   - 端口绑定建议加通配符：`*.example.com` → `<tunnel-id>.cfargotunnel.com`（配合默认 `p8080.example.com` 规则）
+6. 在 Azure / 本地设置环境变量（见上表），至少：
+
+```bash
+CLOUDFLARE_TUNNEL_TOKEN='eyJhIjoi...'
+TUNNEL_NODE_HOSTNAME='node.example.com'
+TUNNEL_BT_HOSTNAME='bt.example.com'
+TUNNEL_PORT_DOMAIN='example.com'
+XRAY_PORT='10086'
+```
+
+7. 部署后程序会自动生成 `cloudflared-config.yml` 并启动名为 `btblog-named-tunnel` 的进程
+
+若你更希望在 Cloudflare 控制台统一管理路由，可设 `CLOUDFLARE_TUNNEL_REMOTE_CONFIG=true`，并在隧道 **Public Hostname** 里手动填写与上面相同的端口映射。
 
 ---
 

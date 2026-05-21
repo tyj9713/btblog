@@ -25,6 +25,21 @@ root 4 0 ./cloudflared-linux tunnel --url http://localhost:12345
   assert.equal(status.bothRunning, true);
 }
 
+async function testParseProcessStatusNamedTunnel() {
+  const status = parseProcessStatus(
+    `
+root 3 0 ./xray/xray run -config xray/config.json
+root 5 0 btblog-named-tunnel ./cloudflared-linux tunnel --config cloudflared-config.yml run
+`,
+    { namedTunnelEnabled: true }
+  );
+
+  assert.equal(status.xrayRunning, true);
+  assert.equal(status.namedTunnelRunning, true);
+  assert.equal(status.argoRunning, true);
+  assert.equal(status.bothRunning, true);
+}
+
 async function testConcurrentStartCoalesces() {
   let runs = 0;
   const manager = new ServiceManager({
@@ -116,6 +131,7 @@ async function testReadyResponseFailsWhenServicesMissing() {
 
 module.exports = {
   testParseProcessStatus,
+  testParseProcessStatusNamedTunnel,
   testConcurrentStartCoalesces,
   testManualStopSuppressesKeepalive,
   testManualStartClearsStoppedState,

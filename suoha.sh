@@ -119,11 +119,24 @@ ensure_cloudflared_binary() {
 
 function quicktunnel(){
 ensure_xray_binary
-ensure_cloudflared_binary
 
 uuid=$(cat /proc/sys/kernel/random/uuid)
 urlpath=$(echo $uuid | awk -F- '{print $1}')
-port=$[$RANDOM+10000]
+port="${XRAY_PORT:-10086}"
+node_host="${TUNNEL_NODE_HOSTNAME:-${NODE_HOSTNAME:-}}"
+use_named_tunnel=0
+if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ] || [ -n "${CLOUDFLARE_TUNNEL_CREDENTIALS_FILE:-}" ]; then
+	use_named_tunnel=1
+fi
+
+if [ "$use_named_tunnel" -eq 0 ]; then
+	ensure_cloudflared_binary
+fi
+
+if [ "$use_named_tunnel" -eq 1 ] && [ -z "$node_host" ]; then
+	echo "已启用固定隧道，但未设置 TUNNEL_NODE_HOSTNAME"
+	exit 1
+fi
 if [ $protocol == 1 ]
 then
 cat>xray/config.json<<EOF
@@ -202,6 +215,11 @@ if ! ps -p $xray_pid > /dev/null; then
     exit 1
 fi
 
+argo=""
+if [ "$use_named_tunnel" -eq 1 ]; then
+	argo="$node_host"
+	echo "使用固定节点域名: https://${argo}"
+else
 # 启动cloudflared并设置超时机制
 ./cloudflared-linux tunnel --url http://localhost:$port --no-autoupdate --edge-ip-version $ips --protocol http2 >argo.log 2>&1 &
 cloudflared_pid=$!
@@ -237,9 +255,9 @@ do
         echo "argo获取超时，第$retry_count次重试中"
         
         if [ $(grep -i PRETTY_NAME /etc/os-release | cut -d \" -f2 | awk '{print $1}') == "Alpine" ]; then
-            kill -9 $(ps -ef | grep cloudflared-linux | grep -v grep | awk '{print $1}') >/dev/null 2>&1
+            kill -9 $(ps -ef | grep cloudflared-linux | grep -v grep | grep -v btblog-named-tunnel | awk '{print $1}') >/dev/null 2>&1
         else
-            kill -9 $(ps -ef | grep cloudflared-linux | grep -v grep | awk '{print $2}') >/dev/null 2>&1
+            kill -9 $(ps -ef | grep cloudflared-linux | grep -v grep | grep -v btblog-named-tunnel | awk '{print $2}') >/dev/null 2>&1
         fi
         
         rm -rf argo.log
@@ -254,6 +272,7 @@ do
         break
     fi
 done
+fi
 
 # 确保没有旧的v2ray.txt
 rm -f v2ray.txt
@@ -325,10 +344,10 @@ ips=4
 if [ $(grep -i PRETTY_NAME /etc/os-release | cut -d \" -f2 | awk '{print $1}') == "Alpine" ]
 then
     kill -9 $(ps -ef | grep xray | grep -v grep | awk '{print $1}') >/dev/null 2>&1
-    kill -9 $(ps -ef | grep cloudflared-linux | grep -v grep | awk '{print $1}') >/dev/null 2>&1
+    kill -9 $(ps -ef | grep cloudflared-linux | grep -v grep | grep -v btblog-named-tunnel | awk '{print $1}') >/dev/null 2>&1
 else
     kill -9 $(ps -ef | grep xray | grep -v grep | awk '{print $2}') >/dev/null 2>&1
-    kill -9 $(ps -ef | grep cloudflared-linux | grep -v grep | awk '{print $2}') >/dev/null 2>&1
+    kill -9 $(ps -ef | grep cloudflared-linux | grep -v grep | grep -v btblog-named-tunnel | awk '{print $2}') >/dev/null 2>&1
 fi
 
 # 清理历史文件

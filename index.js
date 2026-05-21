@@ -8,6 +8,7 @@ const fs = require("node:fs");
 const { ServiceManager, buildReadyResponse } = require("./lib/service-manager");
 const { BaotaManager } = require("./lib/baota-manager");
 const { PortTunnelManager } = require("./lib/port-tunnel-manager");
+const { CloudflareTunnelManager } = require("./lib/cloudflare-tunnel-manager");
 const { resolveRuntimeDir } = require("./lib/runtime");
 const { createAuth } = require("./lib/auth");
 
@@ -16,11 +17,25 @@ const runtimeDir = resolveRuntimeDir(process.env, __dirname);
 const auth = createAuth();
 fs.mkdirSync(runtimeDir, { recursive: true });
 
+function runtimePath(fileName) {
+  return path.join(runtimeDir, fileName);
+}
+
+const cloudflareTunnelManager = new CloudflareTunnelManager({
+  execAsync,
+  logger: console,
+  cwd: runtimeDir,
+  env: process.env,
+  cloudflaredPath: path.join(runtimeDir, "cloudflared-linux"),
+  stateFile: path.join(runtimeDir, "port-tunnels.json"),
+});
+
 const serviceManager = new ServiceManager({
   execAsync,
   logger: console,
   cwd: runtimeDir,
   logFile: runtimePath('suoha-start.log'),
+  namedTunnelEnabled: cloudflareTunnelManager.isEnabled(),
   script: () => {
     const generatedScript = runtimePath('suoha.sh');
     return fs.existsSync(generatedScript) ? generatedScript : path.join(__dirname, 'suoha.sh');
@@ -51,11 +66,8 @@ const portTunnelManager = new PortTunnelManager({
   cloudflaredPath: runtimePath("cloudflared-linux"),
   stateFile: runtimePath("port-tunnels.json"),
   maxTunnels: Number(process.env.MAX_PORT_TUNNELS || 8),
+  tunnelManager: cloudflareTunnelManager,
 });
-
-function runtimePath(fileName) {
-  return path.join(runtimeDir, fileName);
-}
 
 function shellQuote(value) {
   return `'${String(value).replace(/'/g, "'\\''")}'`;
@@ -128,6 +140,17 @@ app.get('/readyz', async (req, res) => {
       ok: false,
       uptime: process.uptime(),
       error: error.message,
+    });
+  }
+});
+
+app.get("/tunnel-status", auth.requireAuth, async (req, res) => {
+  try {
+    res.json(await cloudflareTunnelManager.status());
+  } catch (error) {
+    res.status(500).json({
+      error: "获取固定隧道状态失败",
+      message: error.message,
     });
   }
 });
@@ -342,6 +365,7 @@ app.get('/logs', auth.requireAuth, (req, res) => {
       argoLog: readLogFile('argo.log'),
       baotaInstallLog: readLogFile('baota-install.log'),
       baotaTunnelLog: readLogFile('baota-argo.log'),
+      namedTunnelLog: readLogFile('named-tunnel.log'),
       baotaPanelUrl: readLogFile('baota-panel-url.txt'),
       baotaDefault: readLogFile('baota-default.txt'),
     });
@@ -407,6 +431,19 @@ function keep_baota_alive() {
 
 setInterval(keep_baota_alive, 3 * 60 * 1000);
 keep_baota_alive();
+
+function keep_named_tunnel_alive() {
+  cloudflareTunnelManager.ensureRunning("keepalive").catch((error) => {
+    console.error("固定隧道保活失败:", error.message);
+  });
+}
+
+if (cloudflareTunnelManager.isEnabled()) {
+  cloudflareTunnelManager.sync("startup").catch((error) => {
+    console.error("固定隧道启动失败:", error.message);
+  });
+  setInterval(keep_named_tunnel_alive, 60 * 1000);
+}
 
 // 启动entrypoint.sh脚本
 exec(`bash ${shellQuote(path.join(__dirname, 'entrypoint.sh'))}`, {

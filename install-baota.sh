@@ -133,6 +133,14 @@ stop_panel_tunnel() {
   pkill -9 -f 'baota-panel-tunnel' >/dev/null 2>&1 || true
 }
 
+normalize_hostname() {
+  echo "$1" | sed -E 's#^https?://##; s#/$##'
+}
+
+uses_named_tunnel() {
+  [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ] || [ -n "${CLOUDFLARE_TUNNEL_CREDENTIALS_FILE:-}" ]
+}
+
 is_panel_running() {
   pgrep -f '/www/server/panel/BT-Panel' >/dev/null 2>&1 || pgrep -f 'BT-Panel' >/dev/null 2>&1
 }
@@ -169,7 +177,47 @@ start_baota_service() {
   return 1
 }
 
-start_panel_tunnel() {
+write_panel_url_file() {
+  local port path bt_host public_url
+  port="$(read_panel_port)"
+  path="$(read_panel_path)"
+  bt_host="$(normalize_hostname "${TUNNEL_BT_HOSTNAME:-${BT_HOSTNAME:-}}")"
+
+  if uses_named_tunnel; then
+    if [ -z "$bt_host" ]; then
+      log "已启用固定隧道，但未设置 TUNNEL_BT_HOSTNAME"
+      return 1
+    fi
+    public_url="https://${bt_host}${path}"
+    log "宝塔固定访问地址: ${public_url}"
+  else
+    start_panel_quick_tunnel || return 1
+    public_url="$(head -n 1 "$URL_FILE" 2>/dev/null || true)"
+    if [ -z "$public_url" ]; then
+      return 1
+    fi
+  fi
+
+  {
+    echo "$public_url"
+    echo ""
+    echo "# 本地面板"
+    echo "https://127.0.0.1:${port}${path}"
+    echo ""
+    if [ -f "$DEFAULT_FILE" ]; then
+      cat "$DEFAULT_FILE"
+    elif [ -x /usr/bin/bt ]; then
+      /usr/bin/bt default 2>/dev/null || true
+    elif command -v bt >/dev/null 2>&1; then
+      bt default 2>/dev/null || true
+    fi
+  } >"$URL_FILE"
+
+  log "宝塔外网访问地址已写入 $URL_FILE"
+  cat "$URL_FILE" | tee -a "$INSTALL_LOG"
+}
+
+start_panel_quick_tunnel() {
   ensure_cloudflared || return 1
   stop_panel_tunnel
   : >"$TUNNEL_LOG"
@@ -179,7 +227,7 @@ start_panel_tunnel() {
   path="$(read_panel_path)"
   origin="https://127.0.0.1:${port}"
 
-  log "为宝塔面板启动隧道: ${origin}${path}"
+  log "为宝塔面板启动临时隧道: ${origin}${path}"
   run_panel_tunnel() {
     exec -a baota-panel-tunnel "${RUNTIME_DIR}/cloudflared-linux" tunnel \
       --url "$origin" \
@@ -204,33 +252,14 @@ start_panel_tunnel() {
     fi
     host="$(grep -Eo '[a-z0-9-]+\.trycloudflare\.com' "$TUNNEL_LOG" 2>/dev/null | tail -n 1 || true)"
     if [ -n "$host" ]; then
-      break
+      echo "https://${host}${path}" >"$URL_FILE"
+      return 0
     fi
     sleep 1
   done
 
-  if [ -z "$host" ]; then
-    log "未能从 $TUNNEL_LOG 解析 trycloudflare 地址"
-    return 1
-  fi
-
-  {
-    echo "https://${host}${path}"
-    echo ""
-    echo "# 本地面板"
-    echo "${origin}${path}"
-    echo ""
-    if [ -f "$DEFAULT_FILE" ]; then
-      cat "$DEFAULT_FILE"
-    elif [ -x /usr/bin/bt ]; then
-      /usr/bin/bt default 2>/dev/null || true
-    elif command -v bt >/dev/null 2>&1; then
-      bt default 2>/dev/null || true
-    fi
-  } >"$URL_FILE"
-
-  log "宝塔外网访问地址已写入 $URL_FILE"
-  cat "$URL_FILE" | tee -a "$INSTALL_LOG"
+  log "未能从 $TUNNEL_LOG 解析 trycloudflare 地址"
+  return 1
 }
 
 main() {
@@ -242,7 +271,7 @@ main() {
   install_baota_panel || true
   start_baota_service || true
   save_bt_default
-  start_panel_tunnel || log "宝塔隧道启动失败，可稍后由保活重试"
+  write_panel_url_file || log "宝塔访问地址写入失败，可稍后由保活重试"
 
   log "install-baota.sh 结束"
 }

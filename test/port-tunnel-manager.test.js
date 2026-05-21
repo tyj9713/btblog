@@ -7,6 +7,7 @@ const {
   parsePort,
   parseProtocol,
   buildOrigin,
+  buildNamedTunnelUrl,
   extractTryCloudflareUrl,
   tunnelProcessName,
   tunnelLogFileName,
@@ -36,6 +37,7 @@ async function testExtractTryCloudflareUrl() {
 
 async function testBuildOriginAndNames() {
   assert.equal(buildOrigin(3000, "http"), "http://127.0.0.1:3000");
+  assert.equal(buildNamedTunnelUrl("demo.example.com"), "https://demo.example.com");
   assert.equal(tunnelProcessName(3000), "port-tunnel-3000");
   assert.equal(tunnelLogFileName(3000), "port-tunnel-3000.log");
 }

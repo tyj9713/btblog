@@ -6,6 +6,7 @@ const suites = [
   require("./public-pages.test"),
   require("./auth.test"),
   require("./port-tunnel-manager.test"),
+  require("./cloudflare-tunnel-config.test"),
   require("./baota-manager.test"),
 ];
 
