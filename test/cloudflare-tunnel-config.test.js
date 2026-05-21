@@ -51,6 +51,17 @@ async function testResolveTunnelSettings() {
   assert.equal(settings.useLocalConfig, false);
 }
 
+async function testResolveAzureAppSettingFallback() {
+  const token = makeToken({ a: "a1", t: "t1", s: "s1" });
+  const settings = resolveTunnelSettings({
+    APPSETTING_CLOUDFLARE_TUNNEL_TOKEN: token,
+    APPSETTING_TUNNEL_NODE_HOSTNAME: "node.hk.example.com",
+  });
+  assert.equal(settings.enabled, true);
+  assert.equal(settings.token, token);
+  assert.equal(settings.nodeHostname, "node.hk.example.com");
+}
+
 async function testBuildPortHostname() {
   const settings = resolveTunnelSettings({
     TUNNEL_PORT_DOMAIN: "example.com",
@@ -94,6 +105,7 @@ async function testNormalizeHostname() {
 module.exports = {
   testDecodeTunnelToken,
   testResolveTunnelSettings,
+  testResolveAzureAppSettingFallback,
   testBuildPortHostname,
   testBuildIngressRules,
   testRenderConfigYaml,
