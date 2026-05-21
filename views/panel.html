@@ -3,23 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>梭哈服务控制面板</title>
+  <title>BTBlog 控制台</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     :root {
-      --bg: #f4f6f8;
-      --panel: #ffffff;
-      --ink: #1f2933;
-      --muted: #677382;
-      --line: #d8dee6;
-      --green: #198754;
-      --red: #c24135;
-      --amber: #b7791f;
+      --bg: #eef2f5;
+      --surface: #ffffff;
+      --surface-2: #f7f9fb;
+      --ink: #16202a;
+      --muted: #617080;
+      --line: #d6dde5;
+      --green: #168a56;
+      --red: #c4453c;
+      --amber: #b97817;
       --blue: #1769aa;
-      --soft-blue: #e8f2fb;
-      --soft-green: #e8f5ee;
-      --soft-red: #fbebe9;
-      --code: #111827;
+      --blue-weak: #e7f1fb;
+      --green-weak: #e7f5ee;
+      --red-weak: #fbecea;
+      --shadow: 0 16px 40px rgba(22, 32, 42, 0.08);
+      --radius: 8px;
     }
 
     * { box-sizing: border-box; }
@@ -27,325 +29,465 @@
     body {
       margin: 0;
       min-height: 100vh;
-      background:
-        linear-gradient(180deg, rgba(23, 105, 170, 0.08), transparent 280px),
-        var(--bg);
+      background: var(--bg);
       color: var(--ink);
       font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+      letter-spacing: 0;
     }
 
+    button, input, select { font: inherit; }
+
     .app-shell {
-      width: min(1180px, calc(100% - 28px));
+      width: min(1280px, calc(100% - 28px));
       margin: 0 auto;
-      padding: 24px 0 36px;
+      padding: 22px 0 34px;
     }
 
     .topbar {
-      display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 18px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: end;
+      margin-bottom: 16px;
     }
 
     h1 {
       margin: 0;
-      font-size: clamp(1.45rem, 3vw, 2.15rem);
+      font-size: 1.55rem;
+      line-height: 1.15;
       font-weight: 800;
-      letter-spacing: 0;
     }
 
     .subtitle {
       margin: 6px 0 0;
       color: var(--muted);
-      font-size: 0.95rem;
-    }
-
-    .refresh-meta {
-      color: var(--muted);
-      font-size: 0.86rem;
-      white-space: nowrap;
+      font-size: 0.92rem;
     }
 
     .topbar-actions {
       display: flex;
       align-items: center;
+      justify-content: flex-end;
       gap: 10px;
       flex-wrap: wrap;
-      justify-content: flex-end;
     }
 
-    .btn-logout {
-      min-height: 36px;
-      padding: 0 14px;
-      border-radius: 8px;
-      border: 1px solid var(--line);
-      background: #fff;
+    .refresh-meta {
       color: var(--muted);
-      font-size: 0.86rem;
-      font-weight: 700;
-      cursor: pointer;
+      font-size: 0.84rem;
+      white-space: nowrap;
     }
 
-    .dashboard-grid {
+    .layout {
       display: grid;
-      grid-template-columns: 360px minmax(0, 1fr);
-      gap: 18px;
+      grid-template-columns: 310px minmax(0, 1fr);
+      gap: 16px;
       align-items: start;
     }
 
-    .card {
+    .rail, .workspace {
       border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--panel);
-      box-shadow: 0 10px 24px rgba(31, 41, 51, 0.07);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
     }
 
-    .card + .card { margin-top: 16px; }
+    .rail { overflow: hidden; }
 
-    .card-header {
-      padding: 14px 16px;
+    .rail-section {
+      padding: 16px;
       border-bottom: 1px solid var(--line);
-      background: #fafbfc;
-      border-radius: 8px 8px 0 0 !important;
     }
 
-    .card-title {
-      margin: 0;
-      font-size: 1rem;
-      font-weight: 700;
-    }
+    .rail-section:last-child { border-bottom: 0; }
 
-    .card-body { padding: 16px; }
+    .section-title {
+      margin: 0 0 12px;
+      font-size: 0.95rem;
+      font-weight: 800;
+    }
 
     .status-list {
       display: grid;
-      gap: 10px;
+      gap: 8px;
     }
 
     .status-row {
       display: grid;
-      grid-template-columns: 18px 1fr auto;
+      grid-template-columns: 16px minmax(0, 1fr) auto;
       align-items: center;
-      gap: 10px;
-      min-height: 38px;
-      padding: 9px 10px;
+      gap: 9px;
+      min-height: 36px;
+      padding: 8px 9px;
       border: 1px solid var(--line);
-      border-radius: 8px;
-      background: #fff;
+      border-radius: var(--radius);
+      background: var(--surface-2);
     }
 
     .status-indicator {
-      width: 12px;
-      height: 12px;
+      width: 10px;
+      height: 10px;
       border-radius: 999px;
       background: var(--muted);
-      box-shadow: 0 0 0 4px rgba(103, 115, 130, 0.12);
+      box-shadow: 0 0 0 4px rgba(97, 112, 128, 0.12);
     }
 
     .status-running {
       background: var(--green);
-      box-shadow: 0 0 0 4px rgba(25, 135, 84, 0.14);
+      box-shadow: 0 0 0 4px rgba(22, 138, 86, 0.14);
     }
 
     .status-stopped {
       background: var(--red);
-      box-shadow: 0 0 0 4px rgba(194, 65, 53, 0.14);
+      box-shadow: 0 0 0 4px rgba(196, 69, 60, 0.14);
     }
 
-    .status-label { color: var(--muted); }
-    .status-value { font-weight: 700; text-align: right; }
+    .status-label {
+      color: var(--muted);
+      font-size: 0.9rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .status-value {
+      font-size: 0.9rem;
+      font-weight: 800;
+      text-align: right;
+      white-space: nowrap;
+    }
 
     .action-grid {
       display: grid;
-      grid-template-columns: 1fr;
-      gap: 10px;
+      gap: 8px;
+    }
+
+    .btn, .btn-small, .btn-logout {
+      border-radius: var(--radius);
+      border: 1px solid transparent;
+      font-weight: 800;
+      min-height: 38px;
     }
 
     .btn {
-      min-height: 42px;
-      border-radius: 8px;
-      font-weight: 700;
+      padding: 0 14px;
+      min-height: 40px;
+      cursor: pointer;
     }
 
-    .btn-control {
-      border: 1px solid transparent;
-      color: #fff;
-    }
-
+    .btn-control { color: #fff; }
     .btn-start { background: var(--green); }
     .btn-restart { background: var(--amber); }
     .btn-stop { background: var(--red); }
     .btn-refresh { background: var(--blue); color: #fff; }
 
-    .message {
-      display: none;
-      margin-top: 12px;
-      padding: 10px 12px;
-      border-radius: 8px;
-      white-space: pre-wrap;
-      font-size: 0.92rem;
+    .btn-logout {
+      padding: 0 14px;
+      background: var(--surface);
+      color: var(--muted);
+      border-color: var(--line);
+      cursor: pointer;
     }
 
-    .message.error {
-      display: block;
-      color: var(--red);
-      background: var(--soft-red);
-      border: 1px solid rgba(194, 65, 53, 0.22);
-    }
-
-    .message.info {
-      display: block;
-      color: var(--blue);
-      background: var(--soft-blue);
-      border: 1px solid rgba(23, 105, 170, 0.2);
-    }
+    .workspace { overflow: hidden; }
 
     .nav-tabs {
-      gap: 6px;
-      border-bottom: 0;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 0;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-2);
     }
 
-    .nav-tabs .nav-link,
-    .nav-pills .nav-link {
-      border: 1px solid var(--line);
-      border-radius: 8px;
+    .nav-tabs .nav-item { min-width: 0; }
+
+    .nav-tabs .nav-link {
+      width: 100%;
+      min-height: 48px;
+      border: 0;
+      border-right: 1px solid var(--line);
+      border-radius: 0;
       color: var(--muted);
-      background: #fff;
-      font-weight: 700;
-      min-height: 38px;
+      background: transparent;
+      font-weight: 800;
     }
 
-    .nav-tabs .nav-link.active,
-    .nav-pills .nav-link.active {
-      color: var(--blue);
-      background: var(--soft-blue);
-      border-color: rgba(23, 105, 170, 0.35);
+    .nav-tabs .nav-item:last-child .nav-link { border-right: 0; }
+
+    .nav-tabs .nav-link.active {
+      color: var(--ink);
+      background: var(--surface);
+      box-shadow: inset 0 -3px 0 var(--blue);
     }
 
-    .tab-content { padding-top: 14px; }
+    .tab-content {
+      padding: 18px;
+    }
 
-    .panel-toolbar {
+    .view-head {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 10px;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .view-title {
+      margin: 0;
+      font-size: 1.08rem;
+      font-weight: 800;
     }
 
     .panel-note {
+      margin: 4px 0 0;
       color: var(--muted);
-      font-size: 0.86rem;
+      font-size: 0.9rem;
+    }
+
+    .view-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .overview-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .metric {
+      min-height: 106px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-2);
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .metric-value {
+      margin-top: 8px;
+      font-size: 1rem;
+      font-weight: 800;
+      word-break: break-all;
+    }
+
+    .metric small {
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field label {
+      color: var(--muted);
+      font-size: 0.84rem;
+      font-weight: 800;
+    }
+
+    .field input,
+    .field select,
+    .port-bind-form input,
+    .port-bind-form select {
+      width: 100%;
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 0 11px;
+      background: #fff;
+      color: var(--ink);
+      outline: none;
+    }
+
+    .field input:focus,
+    .field select:focus,
+    .port-bind-form input:focus,
+    .port-bind-form select:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(23, 105, 170, 0.12);
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
     }
 
     .data-panel {
       width: 100%;
-      min-height: 220px;
+      min-height: 120px;
       max-height: 520px;
-      margin: 0;
-      padding: 14px;
       overflow: auto;
+      padding: 14px;
       border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--code);
-      color: #dbeafe;
-      font-family: Consolas, "Cascadia Mono", monospace;
+      border-radius: var(--radius);
+      background: #101820;
+      color: #edf5ff;
+      font-family: Consolas, "Courier New", monospace;
       font-size: 0.86rem;
       line-height: 1.55;
       white-space: pre-wrap;
-      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     .data-panel.empty {
-      color: #8da2b8;
-      background: #172033;
+      background: var(--surface-2);
+      color: var(--muted);
+      font-family: inherit;
     }
 
     .port-bind-form {
       display: grid;
-      grid-template-columns: minmax(120px, 180px) 120px auto;
+      grid-template-columns: minmax(0, 1fr) 140px auto;
       gap: 10px;
-      margin-bottom: 16px;
-      align-items: center;
-    }
-
-    .port-bind-form input,
-    .port-bind-form select {
-      min-height: 42px;
-      padding: 0 12px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      font-size: 0.95rem;
-      background: #fff;
+      align-items: end;
+      margin-bottom: 14px;
     }
 
     .tunnel-list {
       display: grid;
       gap: 10px;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
 
     .tunnel-item {
-      display: grid;
-      gap: 8px;
-      padding: 12px;
       border: 1px solid var(--line);
-      border-radius: 8px;
-      background: #fff;
+      border-radius: var(--radius);
+      background: var(--surface-2);
+      padding: 12px;
     }
 
     .tunnel-item-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
-      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 8px;
     }
 
-    .tunnel-title {
-      font-weight: 700;
-    }
-
-    .tunnel-meta {
-      color: var(--muted);
-      font-size: 0.86rem;
-      word-break: break-all;
-    }
+    .tunnel-title { font-weight: 800; }
+    .tunnel-meta { color: var(--muted); font-size: 0.88rem; word-break: break-all; }
 
     .tunnel-actions {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
+      margin-top: 10px;
     }
 
     .btn-small {
-      min-height: 34px;
-      padding: 0 12px;
-      border-radius: 8px;
-      border: 1px solid var(--line);
-      background: #fff;
-      font-size: 0.84rem;
-      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 32px;
+      padding: 0 10px;
+      background: var(--surface);
+      color: var(--blue);
+      border-color: var(--line);
+      text-decoration: none;
       cursor: pointer;
+      font-size: 0.84rem;
     }
 
     .btn-small.danger {
       color: var(--red);
-      border-color: rgba(194, 65, 53, 0.25);
+      background: var(--red-weak);
+      border-color: rgba(196, 69, 60, 0.22);
     }
 
-    @media (max-width: 860px) {
-      .app-shell { width: min(100% - 20px, 640px); padding-top: 18px; }
-      .topbar { display: block; }
-      .refresh-meta { margin-top: 8px; white-space: normal; }
-      .dashboard-grid { grid-template-columns: 1fr; }
-      .status-row { grid-template-columns: 18px 1fr; }
+    .nav-pills {
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .nav-pills .nav-link {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      color: var(--muted);
+      background: var(--surface);
+      font-weight: 800;
+      min-height: 36px;
+    }
+
+    .nav-pills .nav-link.active {
+      color: var(--blue);
+      background: var(--blue-weak);
+      border-color: rgba(23, 105, 170, 0.24);
+    }
+
+    .message {
+      display: none;
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: var(--radius);
+      white-space: pre-wrap;
+      font-size: 0.9rem;
+    }
+
+    .message.error {
+      display: block;
+      color: var(--red);
+      background: var(--red-weak);
+      border: 1px solid rgba(196, 69, 60, 0.22);
+    }
+
+    .message.info {
+      display: block;
+      color: var(--blue);
+      background: var(--blue-weak);
+      border: 1px solid rgba(23, 105, 170, 0.2);
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+      .overview-grid { grid-template-columns: 1fr; }
+      .split { grid-template-columns: 1fr; }
+      .nav-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .nav-tabs .nav-link { border-bottom: 1px solid var(--line); }
+    }
+
+    @media (max-width: 640px) {
+      .app-shell { width: min(100% - 18px, 1280px); padding-top: 14px; }
+      .topbar { grid-template-columns: 1fr; align-items: start; }
+      .topbar-actions { justify-content: flex-start; }
+      .status-row { grid-template-columns: 16px minmax(0, 1fr); }
       .status-value { grid-column: 2; text-align: left; }
-      .panel-toolbar { align-items: stretch; flex-direction: column; }
-      .btn-refresh { width: 100%; }
-      .data-panel { max-height: 420px; }
+      .tab-content { padding: 12px; }
+      .view-head { flex-direction: column; }
+      .view-actions { width: 100%; justify-content: stretch; }
+      .view-actions .btn { width: 100%; }
+      .form-grid { grid-template-columns: 1fr; }
+      .form-actions { display: grid; }
       .port-bind-form { grid-template-columns: 1fr; }
+      .data-panel { max-height: 420px; }
     }
   </style>
 </head>
@@ -353,8 +495,8 @@
   <main class="app-shell">
     <header class="topbar">
       <div>
-        <h1>梭哈 / 宝塔控制面板</h1>
-        <p class="subtitle">梭哈服务、宝塔面板安装与隧道、日志与保活状态</p>
+        <h1>BTBlog 控制台</h1>
+        <p class="subtitle">服务、固定隧道、宝塔与端口绑定</p>
       </div>
       <div class="topbar-actions">
         <div class="refresh-meta" id="last-refresh">等待首次刷新</div>
@@ -362,208 +504,289 @@
       </div>
     </header>
 
-    <section class="dashboard-grid">
-      <aside>
-        <div class="card">
-          <div class="card-header">
-            <h2 class="card-title">服务状态</h2>
-          </div>
-          <div class="card-body">
-            <div class="status-list">
-              <div class="status-row">
-                <div class="status-indicator status-stopped" id="xray-status-indicator"></div>
-                <span class="status-label">Xray</span>
-                <span id="xray-status" class="status-value">检查中</span>
-              </div>
-              <div class="status-row">
-                <div class="status-indicator status-stopped" id="argo-status-indicator"></div>
-                <span class="status-label" id="argo-status-label">固定隧道</span>
-                <span id="argo-status" class="status-value">检查中</span>
-              </div>
-              <div class="status-row">
-                <div class="status-indicator status-stopped" id="overall-status-indicator"></div>
-                <span class="status-label">整体状态</span>
-                <span id="overall-status" class="status-value">检查中</span>
-              </div>
-              <div class="status-row">
-                <div class="status-indicator status-stopped" id="baota-panel-status-indicator"></div>
-                <span class="status-label">宝塔面板</span>
-                <span id="baota-panel-status" class="status-value">检查中</span>
-              </div>
-              <div class="status-row" id="baota-tunnel-status-row">
-                <div class="status-indicator status-stopped" id="baota-tunnel-status-indicator"></div>
-                <span class="status-label">Quick 隧道</span>
-                <span id="baota-tunnel-status" class="status-value">检查中</span>
-              </div>
+    <section class="layout">
+      <aside class="rail">
+        <div class="rail-section">
+          <h2 class="section-title">运行状态</h2>
+          <div class="status-list">
+            <div class="status-row">
+              <div class="status-indicator status-stopped" id="xray-status-indicator"></div>
+              <span class="status-label">Xray</span>
+              <span id="xray-status" class="status-value">检查中</span>
             </div>
-            <div id="operation-error" class="message"></div>
-            <div id="operation-result" class="message"></div>
+            <div class="status-row">
+              <div class="status-indicator status-stopped" id="argo-status-indicator"></div>
+              <span class="status-label" id="argo-status-label">隧道</span>
+              <span id="argo-status" class="status-value">检查中</span>
+            </div>
+            <div class="status-row">
+              <div class="status-indicator status-stopped" id="overall-status-indicator"></div>
+              <span class="status-label">整体</span>
+              <span id="overall-status" class="status-value">检查中</span>
+            </div>
+            <div class="status-row">
+              <div class="status-indicator status-stopped" id="baota-panel-status-indicator"></div>
+              <span class="status-label">宝塔</span>
+              <span id="baota-panel-status" class="status-value">检查中</span>
+            </div>
+            <div class="status-row" id="baota-tunnel-status-row">
+              <div class="status-indicator status-stopped" id="baota-tunnel-status-indicator"></div>
+              <span class="status-label">Quick 隧道</span>
+              <span id="baota-tunnel-status" class="status-value">检查中</span>
+            </div>
+          </div>
+          <div id="operation-error" class="message"></div>
+          <div id="operation-result" class="message"></div>
+        </div>
+
+        <div class="rail-section">
+          <h2 class="section-title">主要操作</h2>
+          <div class="action-grid">
+            <button id="start-btn" class="btn btn-control btn-start">启动服务</button>
+            <button id="stop-btn" class="btn btn-control btn-stop">停止服务</button>
+            <button id="refresh-overview" class="btn btn-refresh">刷新总览</button>
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-header">
-            <h2 class="card-title">操作</h2>
-          </div>
-          <div class="card-body">
-            <div class="action-grid">
-              <button id="start-btn" class="btn btn-control btn-start">启动服务</button>
-              <button id="restart-btn" class="btn btn-control btn-restart">重启服务</button>
-              <button id="stop-btn" class="btn btn-control btn-stop">停止服务</button>
-              <button id="start-baota-btn" class="btn btn-control btn-refresh">启动宝塔</button>
-              <button id="restart-tunnel-btn" class="btn btn-control btn-refresh">启动固定隧道</button>
-            </div>
-            <p class="panel-note" style="margin: 12px 0 0;">固定隧道启用后，节点与宝塔共用同一条 Cloudflare Tunnel。</p>
+        <div class="rail-section">
+          <h2 class="section-title">高级操作</h2>
+          <div class="action-grid">
+            <button id="restart-btn" class="btn btn-control btn-restart">重启服务</button>
+            <button id="start-baota-btn" class="btn btn-control btn-refresh">启动宝塔</button>
           </div>
         </div>
       </aside>
 
-      <section class="card">
-        <div class="card-header">
-          <ul class="nav nav-tabs" id="infoTabs" role="tablist">
-            <li class="nav-item" role="presentation">
-              <button class="nav-link active" id="v2ray-tab" data-bs-toggle="tab" data-bs-target="#v2ray-content" type="button" role="tab" aria-controls="v2ray-content" aria-selected="true">V2Ray 链接</button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link" id="server-tab" data-bs-toggle="tab" data-bs-target="#server-content" type="button" role="tab" aria-controls="server-content" aria-selected="false">服务器信息</button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link" id="baota-tab" data-bs-toggle="tab" data-bs-target="#baota-content" type="button" role="tab" aria-controls="baota-content" aria-selected="false">宝塔面板</button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link" id="named-tunnel-tab" data-bs-toggle="tab" data-bs-target="#named-tunnel-content" type="button" role="tab" aria-controls="named-tunnel-content" aria-selected="false">固定隧道</button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link" id="port-tunnel-tab" data-bs-toggle="tab" data-bs-target="#port-tunnel-content" type="button" role="tab" aria-controls="port-tunnel-content" aria-selected="false">端口绑定</button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs-content" type="button" role="tab" aria-controls="logs-content" aria-selected="false">系统日志</button>
-            </li>
-          </ul>
-        </div>
-        <div class="card-body">
-          <div class="tab-content" id="infoTabContent">
-            <div class="tab-pane fade show active" id="v2ray-content" role="tabpanel" aria-labelledby="v2ray-tab" tabindex="0">
-              <div class="panel-toolbar">
-                <span class="panel-note">启动成功后会显示当前可用链接。</span>
+      <section class="workspace">
+        <ul class="nav nav-tabs" id="infoTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview-content" type="button" role="tab" aria-controls="overview-content" aria-selected="true">总览</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="named-tunnel-tab" data-bs-toggle="tab" data-bs-target="#named-tunnel-content" type="button" role="tab" aria-controls="named-tunnel-content" aria-selected="false">固定隧道</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="baota-tab" data-bs-toggle="tab" data-bs-target="#baota-content" type="button" role="tab" aria-controls="baota-content" aria-selected="false">宝塔</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="port-tunnel-tab" data-bs-toggle="tab" data-bs-target="#port-tunnel-content" type="button" role="tab" aria-controls="port-tunnel-content" aria-selected="false">端口</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs-content" type="button" role="tab" aria-controls="logs-content" aria-selected="false">诊断</button>
+          </li>
+        </ul>
+
+        <div class="tab-content" id="infoTabContent">
+          <div class="tab-pane fade show active" id="overview-content" role="tabpanel" aria-labelledby="overview-tab" tabindex="0">
+            <div class="view-head">
+              <div>
+                <h2 class="view-title">总览</h2>
+                <p class="panel-note">当前服务入口和运行状态。</p>
+              </div>
+              <div class="view-actions">
                 <button id="refresh-v2ray" class="btn btn-refresh">刷新链接</button>
+                <button id="refresh-server" class="btn btn-refresh">刷新服务器</button>
               </div>
-              <pre id="v2ray-info" class="data-panel empty">加载中...</pre>
             </div>
-
-            <div class="tab-pane fade" id="server-content" role="tabpanel" aria-labelledby="server-tab" tabindex="0">
-              <div class="panel-toolbar">
-                <span class="panel-note">系统版本、内核和网络出口信息。</span>
-                <button id="refresh-server" class="btn btn-refresh">刷新服务器信息</button>
+            <div class="overview-grid">
+              <div class="metric">
+                <div class="metric-label">订阅状态</div>
+                <div class="metric-value" id="overview-subscription">检查中</div>
+                <small>/xxxooo</small>
               </div>
-              <pre id="server-info" class="data-panel empty">加载中...</pre>
+              <div class="metric">
+                <div class="metric-label" id="overview-tunnel-label">隧道</div>
+                <div class="metric-value" id="overview-tunnel">检查中</div>
+                <small id="overview-tunnel-detail">等待配置</small>
+              </div>
+              <div class="metric">
+                <div class="metric-label">宝塔面板</div>
+                <div class="metric-value" id="overview-baota">检查中</div>
+                <small id="overview-baota-detail">等待刷新</small>
+              </div>
             </div>
-
-            <div class="tab-pane fade" id="baota-content" role="tabpanel" aria-labelledby="baota-tab" tabindex="0">
-              <div class="panel-toolbar">
-                <span class="panel-note">外网地址、默认账号与安装/隧道日志（由保活自动维护）。</span>
-                <button id="refresh-baota" class="btn btn-refresh">刷新宝塔信息</button>
-              </div>
-              <pre id="baota-login-info" class="data-panel empty" style="min-height: 140px; max-height: 220px;">加载中...</pre>
-              <ul class="nav nav-pills mb-3" id="baotaSubTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                  <button class="nav-link active" id="baota-install-tab" data-bs-toggle="pill" data-bs-target="#baota-install-logs" type="button" role="tab" aria-controls="baota-install-logs" aria-selected="true">安装日志</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                  <button class="nav-link" id="baota-tunnel-tab" data-bs-toggle="pill" data-bs-target="#baota-tunnel-logs" type="button" role="tab" aria-controls="baota-tunnel-logs" aria-selected="false"><span id="baota-tunnel-tab-label">固定隧道日志</span></button>
-                </li>
-              </ul>
-              <div class="tab-content" id="baotaSubTabContent">
-                <div class="tab-pane fade show active" id="baota-install-logs" role="tabpanel" aria-labelledby="baota-install-tab" tabindex="0">
-                  <pre id="baota-install-log" class="data-panel empty">加载中...</pre>
+            <div class="split">
+              <section id="v2ray-content">
+                <div class="view-head">
+                  <h3 class="view-title">V2Ray 链接</h3>
                 </div>
-                <div class="tab-pane fade" id="baota-tunnel-logs" role="tabpanel" aria-labelledby="baota-tunnel-tab" tabindex="0">
-                  <pre id="baota-tunnel-log" class="data-panel empty">加载中...</pre>
+                <pre id="v2ray-info" class="data-panel empty">加载中...</pre>
+              </section>
+              <section id="server-content">
+                <div class="view-head">
+                  <h3 class="view-title">服务器信息</h3>
                 </div>
-              </div>
+                <pre id="server-info" class="data-panel empty">加载中...</pre>
+              </section>
             </div>
+          </div>
 
-            <div class="tab-pane fade" id="named-tunnel-content" role="tabpanel" aria-labelledby="named-tunnel-tab" tabindex="0">
-              <div class="panel-toolbar">
-                <span class="panel-note">保存配置会写入运行目录并尝试通过 Cloudflare API 推送路由；启动需要手动点击「启动固定隧道」。</span>
+          <div class="tab-pane fade" id="named-tunnel-content" role="tabpanel" aria-labelledby="named-tunnel-tab" tabindex="0">
+            <div class="view-head">
+              <div>
+                <h2 class="view-title">固定隧道</h2>
+                <p class="panel-note">先保存配置和路由，再启动隧道进程。</p>
+              </div>
+              <div class="view-actions">
                 <button id="refresh-tunnel-config" class="btn btn-refresh">刷新配置</button>
               </div>
-              <div class="port-bind-form">
-                <input id="tunnel-token" type="password" placeholder="Cloudflare Tunnel Token（留空保留原值）">
-                <input id="tunnel-api-token" type="password" placeholder="Cloudflare API Token（留空保留原值）">
-                <input id="tunnel-account-id" type="text" placeholder="Cloudflare Account ID">
-                <input id="tunnel-id" type="text" placeholder="Cloudflare Tunnel ID">
-                <input id="tunnel-node-hostname" type="text" placeholder="节点域名，如 node.example.com">
-                <input id="tunnel-bt-hostname" type="text" placeholder="宝塔域名，如 bt.example.com">
-                <input id="tunnel-port-domain" type="text" placeholder="端口绑定域名后缀，如 example.com">
-                <input id="tunnel-port-prefix" type="text" placeholder="端口子域名前缀，默认 p">
-                <input id="tunnel-xray-port" type="number" min="1" max="65535" placeholder="Xray 端口，默认 10086">
-                <input id="tunnel-bt-port" type="number" min="1" max="65535" placeholder="宝塔端口，默认 8888">
-                <button id="save-tunnel-config-btn" class="btn btn-control btn-start">保存配置</button>
-                <button id="start-tunnel-btn" class="btn btn-control btn-refresh">启动固定隧道</button>
-              </div>
-              <pre id="named-tunnel-config-info" class="data-panel empty">加载中...</pre>
             </div>
+            <div class="form-grid">
+              <div class="field">
+                <label for="tunnel-token">Tunnel Token</label>
+                <input id="tunnel-token" type="password" placeholder="留空保留原值">
+              </div>
+              <div class="field">
+                <label for="tunnel-api-token">API Token</label>
+                <input id="tunnel-api-token" type="password" placeholder="留空保留原值">
+              </div>
+              <div class="field">
+                <label for="tunnel-account-id">Account ID</label>
+                <input id="tunnel-account-id" type="text" placeholder="Cloudflare Account ID">
+              </div>
+              <div class="field">
+                <label for="tunnel-id">Tunnel ID</label>
+                <input id="tunnel-id" type="text" placeholder="Cloudflare Tunnel ID">
+              </div>
+              <div class="field">
+                <label for="tunnel-node-hostname">节点域名</label>
+                <input id="tunnel-node-hostname" type="text" placeholder="node.example.com">
+              </div>
+              <div class="field">
+                <label for="tunnel-bt-hostname">宝塔域名</label>
+                <input id="tunnel-bt-hostname" type="text" placeholder="bt.example.com">
+              </div>
+              <div class="field">
+                <label for="tunnel-port-domain">端口域名后缀</label>
+                <input id="tunnel-port-domain" type="text" placeholder="example.com">
+              </div>
+              <div class="field">
+                <label for="tunnel-port-prefix">端口前缀</label>
+                <input id="tunnel-port-prefix" type="text" placeholder="p">
+              </div>
+              <div class="field">
+                <label for="tunnel-xray-port">Xray 端口</label>
+                <input id="tunnel-xray-port" type="number" min="1" max="65535" placeholder="10086">
+              </div>
+              <div class="field">
+                <label for="tunnel-bt-port">宝塔端口</label>
+                <input id="tunnel-bt-port" type="number" min="1" max="65535" placeholder="8888">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button id="save-tunnel-config-btn" class="btn btn-control btn-start">保存配置并推送路由</button>
+              <button id="start-tunnel-btn" class="btn btn-control btn-refresh">启动固定隧道</button>
+            </div>
+            <pre id="named-tunnel-config-info" class="data-panel empty">加载中...</pre>
+            <div class="view-head" style="margin-top: 14px;">
+              <div>
+                <h3 class="view-title">运行日志</h3>
+                <p class="panel-note">固定隧道进程输出，完整日志见「诊断」页。</p>
+              </div>
+              <div class="view-actions">
+                <button id="refresh-named-tunnel-log" class="btn btn-refresh" type="button">刷新日志</button>
+              </div>
+            </div>
+            <pre id="named-tunnel-runtime-log" class="data-panel empty">加载中...</pre>
+          </div>
 
-            <div class="tab-pane fade" id="port-tunnel-content" role="tabpanel" aria-labelledby="port-tunnel-tab" tabindex="0">
-              <div class="panel-toolbar">
-                <span class="panel-note">为本地端口创建 Cloudflare 临时隧道（trycloudflare.com），绑定后可通过外网 URL 访问。</span>
+          <div class="tab-pane fade" id="baota-content" role="tabpanel" aria-labelledby="baota-tab" tabindex="0">
+            <div class="view-head">
+              <div>
+                <h2 class="view-title">宝塔</h2>
+                <p class="panel-note">面板地址、账号和安装日志。</p>
+              </div>
+              <div class="view-actions">
+                <button id="refresh-baota" class="btn btn-refresh">刷新宝塔</button>
+              </div>
+            </div>
+            <pre id="baota-login-info" class="data-panel empty" style="min-height: 140px; max-height: 220px;">加载中...</pre>
+            <ul class="nav nav-pills" id="baotaSubTabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="baota-install-tab" data-bs-toggle="pill" data-bs-target="#baota-install-logs" type="button" role="tab" aria-controls="baota-install-logs" aria-selected="true">安装日志</button>
+              </li>
+              <li class="nav-item" role="presentation" id="baota-tunnel-tab-item">
+                <button class="nav-link" id="baota-tunnel-tab" data-bs-toggle="pill" data-bs-target="#baota-tunnel-logs" type="button" role="tab" aria-controls="baota-tunnel-logs" aria-selected="false"><span id="baota-tunnel-tab-label">隧道日志</span></button>
+              </li>
+            </ul>
+            <div class="tab-content p-0" id="baotaSubTabContent">
+              <div class="tab-pane fade show active" id="baota-install-logs" role="tabpanel" aria-labelledby="baota-install-tab" tabindex="0">
+                <pre id="baota-install-log" class="data-panel empty">加载中...</pre>
+              </div>
+              <div class="tab-pane fade" id="baota-tunnel-logs" role="tabpanel" aria-labelledby="baota-tunnel-tab" tabindex="0">
+                <pre id="baota-tunnel-log" class="data-panel empty">加载中...</pre>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-pane fade" id="port-tunnel-content" role="tabpanel" aria-labelledby="port-tunnel-tab" tabindex="0">
+            <div class="view-head">
+              <div>
+                <h2 class="view-title">端口绑定</h2>
+                <p class="panel-note">把本地端口绑定到外网地址；需先在「固定隧道」配置端口域名后缀。</p>
+              </div>
+              <div class="view-actions">
                 <button id="refresh-port-tunnels" class="btn btn-refresh">刷新列表</button>
               </div>
-              <div class="port-bind-form">
-                <input id="port-input" type="number" min="1" max="65535" placeholder="本地端口，如 8080">
-                <select id="port-protocol">
-                  <option value="http">HTTP</option>
-                  <option value="https">HTTPS</option>
-                </select>
-                <button id="bind-port-btn" class="btn btn-control btn-start">绑定端口</button>
-              </div>
-              <div id="port-tunnel-list" class="tunnel-list">
-                <div class="tunnel-item">
-                  <div class="tunnel-meta">加载中...</div>
-                </div>
-              </div>
-              <pre id="port-tunnel-log" class="data-panel empty">选择端口后，这里会显示最近一条隧道日志。</pre>
             </div>
-
-            <div class="tab-pane fade" id="logs-content" role="tabpanel" aria-labelledby="logs-tab" tabindex="0">
-              <div class="panel-toolbar">
-                <span class="panel-note">运行目录、进程和 Argo 日志。</span>
-                <button id="refresh-logs" class="btn btn-refresh">刷新日志</button>
+            <div class="port-bind-form">
+              <input id="port-input" type="number" min="1" max="65535" placeholder="本地端口，如 8080">
+              <select id="port-protocol">
+                <option value="http">HTTP</option>
+                <option value="https">HTTPS</option>
+              </select>
+              <button id="bind-port-btn" class="btn btn-control btn-start">绑定端口</button>
+            </div>
+            <div id="port-tunnel-list" class="tunnel-list">
+              <div class="tunnel-item">
+                <div class="tunnel-meta">加载中...</div>
               </div>
-              <ul class="nav nav-pills mb-3" id="logsSubTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                  <button class="nav-link active" id="system-logs-tab" data-bs-toggle="pill" data-bs-target="#system-logs" type="button" role="tab" aria-controls="system-logs" aria-selected="true">系统信息</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                  <button class="nav-link" id="process-logs-tab" data-bs-toggle="pill" data-bs-target="#process-logs" type="button" role="tab" aria-controls="process-logs" aria-selected="false">进程信息</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                  <button class="nav-link" id="files-logs-tab" data-bs-toggle="pill" data-bs-target="#files-logs" type="button" role="tab" aria-controls="files-logs" aria-selected="false">文件信息</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                  <button class="nav-link" id="argo-logs-tab" data-bs-toggle="pill" data-bs-target="#argo-logs" type="button" role="tab" aria-controls="argo-logs" aria-selected="false"><span id="argo-logs-tab-label">服务日志</span></button>
-                </li>
-                <li class="nav-item" role="presentation">
-                  <button class="nav-link" id="baota-logs-tab" data-bs-toggle="pill" data-bs-target="#baota-logs" type="button" role="tab" aria-controls="baota-logs" aria-selected="false">宝塔日志</button>
-                </li>
-              </ul>
-              <div class="tab-content" id="logsSubTabContent">
-                <div class="tab-pane fade show active" id="system-logs" role="tabpanel" aria-labelledby="system-logs-tab" tabindex="0">
-                  <pre id="system-logs-content" class="data-panel empty">加载中...</pre>
-                </div>
-                <div class="tab-pane fade" id="process-logs" role="tabpanel" aria-labelledby="process-logs-tab" tabindex="0">
-                  <pre id="process-logs-content" class="data-panel empty">加载中...</pre>
-                </div>
-                <div class="tab-pane fade" id="files-logs" role="tabpanel" aria-labelledby="files-logs-tab" tabindex="0">
-                  <pre id="files-logs-content" class="data-panel empty">加载中...</pre>
-                </div>
-                <div class="tab-pane fade" id="argo-logs" role="tabpanel" aria-labelledby="argo-logs-tab" tabindex="0">
-                  <pre id="argo-logs-content" class="data-panel empty">加载中...</pre>
-                </div>
-                <div class="tab-pane fade" id="baota-logs" role="tabpanel" aria-labelledby="baota-logs-tab" tabindex="0">
-                  <pre id="baota-logs-content" class="data-panel empty">加载中...</pre>
-                </div>
+            </div>
+            <pre id="port-tunnel-log" class="data-panel empty">选择端口后，这里会显示最近一条隧道日志。</pre>
+          </div>
+
+          <div class="tab-pane fade" id="logs-content" role="tabpanel" aria-labelledby="logs-tab" tabindex="0">
+            <div class="view-head">
+              <div>
+                <h2 class="view-title">诊断</h2>
+                <p class="panel-note">进程、文件、系统和运行日志。</p>
+              </div>
+              <div class="view-actions">
+                <button id="refresh-logs" class="btn btn-refresh">刷新诊断</button>
+              </div>
+            </div>
+            <ul class="nav nav-pills" id="logsSubTabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="system-logs-tab" data-bs-toggle="pill" data-bs-target="#system-logs" type="button" role="tab" aria-controls="system-logs" aria-selected="true">系统</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="process-logs-tab" data-bs-toggle="pill" data-bs-target="#process-logs" type="button" role="tab" aria-controls="process-logs" aria-selected="false">进程</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="files-logs-tab" data-bs-toggle="pill" data-bs-target="#files-logs" type="button" role="tab" aria-controls="files-logs" aria-selected="false">文件</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="argo-logs-tab" data-bs-toggle="pill" data-bs-target="#argo-logs" type="button" role="tab" aria-controls="argo-logs" aria-selected="false"><span id="argo-logs-tab-label">服务</span></button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="baota-logs-tab" data-bs-toggle="pill" data-bs-target="#baota-logs" type="button" role="tab" aria-controls="baota-logs" aria-selected="false">宝塔</button>
+              </li>
+            </ul>
+            <div class="tab-content p-0" id="logsSubTabContent">
+              <div class="tab-pane fade show active" id="system-logs" role="tabpanel" aria-labelledby="system-logs-tab" tabindex="0">
+                <pre id="system-logs-content" class="data-panel empty">加载中...</pre>
+              </div>
+              <div class="tab-pane fade" id="process-logs" role="tabpanel" aria-labelledby="process-logs-tab" tabindex="0">
+                <pre id="process-logs-content" class="data-panel empty">加载中...</pre>
+              </div>
+              <div class="tab-pane fade" id="files-logs" role="tabpanel" aria-labelledby="files-logs-tab" tabindex="0">
+                <pre id="files-logs-content" class="data-panel empty">加载中...</pre>
+              </div>
+              <div class="tab-pane fade" id="argo-logs" role="tabpanel" aria-labelledby="argo-logs-tab" tabindex="0">
+                <pre id="argo-logs-content" class="data-panel empty">加载中...</pre>
+              </div>
+              <div class="tab-pane fade" id="baota-logs" role="tabpanel" aria-labelledby="baota-logs-tab" tabindex="0">
+                <pre id="baota-logs-content" class="data-panel empty">加载中...</pre>
               </div>
             </div>
           </div>
@@ -579,40 +802,17 @@
       const startBtn = document.getElementById("start-btn");
       const restartBtn = document.getElementById("restart-btn");
       const stopBtn = document.getElementById("stop-btn");
+      const refreshOverviewBtn = document.getElementById("refresh-overview");
       const refreshV2RayBtn = document.getElementById("refresh-v2ray");
       const refreshServerBtn = document.getElementById("refresh-server");
       const refreshLogsBtn = document.getElementById("refresh-logs");
       const refreshBaotaBtn = document.getElementById("refresh-baota");
       const startBaotaBtn = document.getElementById("start-baota-btn");
       const refreshPortTunnelsBtn = document.getElementById("refresh-port-tunnels");
-      const restartTunnelBtn = document.getElementById("restart-tunnel-btn");
       const refreshTunnelConfigBtn = document.getElementById("refresh-tunnel-config");
+      const refreshNamedTunnelLogBtn = document.getElementById("refresh-named-tunnel-log");
       const saveTunnelConfigBtn = document.getElementById("save-tunnel-config-btn");
       const startTunnelBtn = document.getElementById("start-tunnel-btn");
-      let namedTunnelEnabled = false;
-
-      function applyNamedTunnelUi(enabled) {
-        namedTunnelEnabled = Boolean(enabled);
-        const argoLabel = document.getElementById("argo-status-label");
-        const baotaTunnelRow = document.getElementById("baota-tunnel-status-row");
-        const baotaTunnelTabLabel = document.getElementById("baota-tunnel-tab-label");
-        const argoLogsTabLabel = document.getElementById("argo-logs-tab-label");
-        if (argoLabel) {
-          argoLabel.textContent = namedTunnelEnabled ? "固定隧道" : "Argo";
-        }
-        if (baotaTunnelRow) {
-          baotaTunnelRow.style.display = namedTunnelEnabled ? "none" : "";
-        }
-        if (baotaTunnelTabLabel) {
-          baotaTunnelTabLabel.textContent = namedTunnelEnabled ? "固定隧道日志" : "Quick 隧道日志";
-        }
-        if (argoLogsTabLabel) {
-          argoLogsTabLabel.textContent = namedTunnelEnabled ? "服务日志" : "Argo日志";
-        }
-        if (restartTunnelBtn) {
-          restartTunnelBtn.style.display = namedTunnelEnabled ? "" : "none";
-        }
-      }
       const bindPortBtn = document.getElementById("bind-port-btn");
       const portInput = document.getElementById("port-input");
       const portProtocol = document.getElementById("port-protocol");
@@ -630,10 +830,21 @@
       const operationError = document.getElementById("operation-error");
       const operationResult = document.getElementById("operation-result");
       const lastRefresh = document.getElementById("last-refresh");
+      let namedTunnelEnabled = false;
 
       function setMessage(element, type, message) {
         element.className = type ? `message ${type}` : "message";
         element.textContent = message || "";
+      }
+
+      function showError(message) {
+        setMessage(operationError, "error", message);
+        setTimeout(() => setMessage(operationError, "", ""), 10000);
+      }
+
+      function showResult(message) {
+        setMessage(operationResult, "info", message);
+        setTimeout(() => setMessage(operationResult, "", ""), 10000);
       }
 
       function setupTabs(tabListId) {
@@ -662,21 +873,16 @@
         });
       }
 
-      function showError(message) {
-        setMessage(operationError, "error", message);
-        setTimeout(() => setMessage(operationError, "", ""), 10000);
-      }
-
-      function showResult(message) {
-        setMessage(operationResult, "info", message);
-        setTimeout(() => setMessage(operationResult, "", ""), 10000);
-      }
-
       function setPanelText(id, text) {
         const panel = document.getElementById(id);
         const value = String(text || "").trim() || "暂无数据";
         panel.textContent = value;
         panel.classList.toggle("empty", value === "暂无数据" || value.includes("失败"));
+      }
+
+      function setText(id, text) {
+        const node = document.getElementById(id);
+        if (node) node.textContent = text;
       }
 
       function markRefreshed() {
@@ -710,6 +916,35 @@
         value.style.color = running ? "var(--green)" : "var(--red)";
       }
 
+      function applyNamedTunnelUi(enabled) {
+        namedTunnelEnabled = Boolean(enabled);
+        const argoLabel = document.getElementById("argo-status-label");
+        const overviewTunnelLabel = document.getElementById("overview-tunnel-label");
+        const baotaTunnelRow = document.getElementById("baota-tunnel-status-row");
+        const baotaTunnelTabItem = document.getElementById("baota-tunnel-tab-item");
+        const baotaTunnelTabLabel = document.getElementById("baota-tunnel-tab-label");
+        const argoLogsTabLabel = document.getElementById("argo-logs-tab-label");
+        const tunnelLabel = namedTunnelEnabled ? "固定隧道" : "Argo";
+        if (argoLabel) argoLabel.textContent = tunnelLabel;
+        if (overviewTunnelLabel) overviewTunnelLabel.textContent = tunnelLabel;
+        if (baotaTunnelRow) baotaTunnelRow.style.display = namedTunnelEnabled ? "none" : "";
+        if (baotaTunnelTabItem) baotaTunnelTabItem.style.display = namedTunnelEnabled ? "none" : "";
+        if (baotaTunnelTabLabel) baotaTunnelTabLabel.textContent = namedTunnelEnabled ? "固定隧道日志" : "Quick 隧道日志";
+        if (argoLogsTabLabel) argoLogsTabLabel.textContent = namedTunnelEnabled ? "服务" : "Argo";
+      }
+
+      function isNamedTunnelTabActive() {
+        const tab = document.getElementById("named-tunnel-tab");
+        return Boolean(tab && tab.classList.contains("active"));
+      }
+
+      function formatNamedTunnelLog(data) {
+        if (!data?.namedTunnelEnabled) {
+          return "当前未启用固定隧道模式。";
+        }
+        return data.tunnelLog || data.namedTunnelLog || "暂无固定隧道日志";
+      }
+
       function formatBaotaLoginInfo(data) {
         const logs = data.logs || {};
         const lines = [];
@@ -720,49 +955,39 @@
         }
         if (data.installed === false) {
           lines.push("", data.needsReinstall
-            ? "状态: 容器重启后面板已丢失，将自动重新安装（约 10–30 分钟）。请点击「启动宝塔」或等待保活。"
+            ? "状态: 容器重启后面板已丢失，将自动重新安装。"
             : "状态: 宝塔尚未安装完成");
         } else if (data.ready) {
-          lines.push("", "状态: 已就绪（面板 + 隧道 + 外网地址）");
+          lines.push("", "状态: 已就绪");
         } else if (data.panelRunning === false && data.tunnelRunning) {
-          lines.push("", "状态: 面板已停止但隧道仍在运行，外网地址可能失效。请点击「启动宝塔」或等待保活自动修复。");
+          lines.push("", "状态: 面板已停止，隧道仍在运行");
         } else if (data.namedTunnelEnabled && data.tunnelRunning === false) {
-          lines.push("", "状态: 固定隧道未运行，请点击「重启固定隧道」并查看固定隧道日志。");
+          lines.push("", "状态: 固定隧道未运行");
         } else if (data.panelRunning && data.tunnelRunning === false) {
-          lines.push("", "状态: 面板在运行但 Quick 隧道未就绪，请点击「启动宝塔」重建隧道。");
+          lines.push("", "状态: 面板运行中，隧道未就绪");
         } else {
-          lines.push("", "状态: 面板或隧道未就绪，请点击「启动宝塔」并查看下方日志");
+          lines.push("", "状态: 面板或隧道未就绪");
         }
         const loginBlock = logs.loginInfo || logs.defaultInfo;
         if (loginBlock && !String(loginBlock).includes("不存在")) {
           lines.push("", "===== 登录信息 =====", String(loginBlock).trim());
         }
-        return lines.filter(Boolean).join("\n") || "暂无宝塔登录信息，安装完成后会自动刷新";
+        return lines.filter(Boolean).join("\n") || "暂无宝塔登录信息";
       }
 
       async function updateBaotaStatus() {
-        try {
-          const data = await fetchJson("/baota-info");
-          setStatus(
-            "baota-panel-status-indicator",
-            "baota-panel-status",
-            data.panelRunning,
-            data.installed ? "运行中" : "未安装",
-            data.installed ? "已停止" : "未安装"
-          );
-          setStatus(
-            "baota-tunnel-status-indicator",
-            "baota-tunnel-status",
-            data.tunnelRunning,
-            "运行中",
-            "已停止"
-          );
-          return data;
-        } catch (error) {
-          setStatus("baota-panel-status-indicator", "baota-panel-status", false, "运行中", "检查失败");
-          setStatus("baota-tunnel-status-indicator", "baota-tunnel-status", false, "运行中", "检查失败");
-          throw error;
-        }
+        const data = await fetchJson("/baota-info");
+        setStatus(
+          "baota-panel-status-indicator",
+          "baota-panel-status",
+          data.panelRunning,
+          data.installed ? "运行中" : "未安装",
+          data.installed ? "已停止" : "未安装"
+        );
+        setStatus("baota-tunnel-status-indicator", "baota-tunnel-status", data.tunnelRunning, "运行中", "已停止");
+        setText("overview-baota", data.ready ? "已就绪" : data.installed ? "未就绪" : "未安装");
+        setText("overview-baota-detail", data.panelUrl || "-");
+        return data;
       }
 
       async function getBaotaInfo() {
@@ -774,23 +999,28 @@
           const logs = data.logs || {};
           setPanelText("baota-login-info", formatBaotaLoginInfo(data));
           setPanelText("baota-install-log", logs.installLog || "暂无安装日志");
-          setPanelText("baota-tunnel-log", logs.tunnelLog || "暂无隧道日志");
+          setPanelText(
+            "baota-tunnel-log",
+            data.namedTunnelEnabled
+              ? "固定隧道模式下，隧道日志请查看「固定隧道」或「诊断」页。"
+              : (logs.tunnelLog || "暂无隧道日志")
+          );
           markRefreshed();
+          return data;
         } catch (error) {
           const message = "获取宝塔信息失败: " + error.message;
           setPanelText("baota-login-info", message);
           setPanelText("baota-install-log", message);
           setPanelText("baota-tunnel-log", message);
+          setStatus("baota-panel-status-indicator", "baota-panel-status", false, "运行中", "检查失败");
+          setStatus("baota-tunnel-status-indicator", "baota-tunnel-status", false, "运行中", "检查失败");
+          throw error;
         }
       }
 
       function renderPortTunnelList(tunnels) {
         if (!Array.isArray(tunnels) || tunnels.length === 0) {
-          portTunnelList.innerHTML = `
-            <div class="tunnel-item">
-              <div class="tunnel-meta">暂无已绑定端口。输入本地端口并点击「绑定端口」创建临时隧道。</div>
-            </div>
-          `;
+          portTunnelList.innerHTML = `<div class="tunnel-item"><div class="tunnel-meta">暂无已绑定端口。</div></div>`;
           return;
         }
 
@@ -814,7 +1044,7 @@
             <div class="tunnel-item" data-port="${tunnel.port}">
               <div class="tunnel-item-head">
                 <div class="tunnel-title">端口 ${tunnel.port} · ${String(tunnel.protocol || "http").toUpperCase()}</div>
-                <span style="color:${statusColor}; font-weight:700;">${statusText}</span>
+                <span style="color:${statusColor}; font-weight:800;">${statusText}</span>
               </div>
               <div class="tunnel-meta">本地: ${tunnel.origin || `127.0.0.1:${tunnel.port}`}</div>
               ${urlBlock}
@@ -831,26 +1061,15 @@
 
       async function getPortTunnels(options = {}) {
         if (!options.silent) {
-          renderPortTunnelList([]);
-          portTunnelList.innerHTML = `
-            <div class="tunnel-item">
-              <div class="tunnel-meta">加载中...</div>
-            </div>
-          `;
+          portTunnelList.innerHTML = `<div class="tunnel-item"><div class="tunnel-meta">加载中...</div></div>`;
         }
         try {
           const data = await fetchJson("/port-tunnels");
           renderPortTunnelList(data.tunnels || []);
-          if (!options.silent) {
-            markRefreshed();
-          }
+          if (!options.silent) markRefreshed();
           return data;
         } catch (error) {
-          portTunnelList.innerHTML = `
-            <div class="tunnel-item">
-              <div class="tunnel-meta">获取端口隧道失败: ${error.message}</div>
-            </div>
-          `;
+          portTunnelList.innerHTML = `<div class="tunnel-item"><div class="tunnel-meta">获取端口隧道失败: ${error.message}</div></div>`;
           throw error;
         }
       }
@@ -878,6 +1097,7 @@
               : "路由推送: 已通过 Cloudflare API 更新"
           );
         }
+        setText("overview-tunnel-detail", data.nodeHostname || data.btHostname || data.portDomain || "等待配置");
         setPanelText("named-tunnel-config-info", lines.join("\n"));
       }
 
@@ -929,19 +1149,12 @@
         if (!Number.isInteger(port) || port < 1 || port > 65535) {
           throw new Error("请输入 1-65535 之间的有效端口");
         }
-
         const data = await fetchJson("/port-tunnels/bind", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            port,
-            protocol: portProtocol.value,
-          }),
+          body: JSON.stringify({ port, protocol: portProtocol.value }),
         });
-
-        if (data.tunnel?.logTail) {
-          setPanelText("port-tunnel-log", data.tunnel.logTail);
-        }
+        if (data.tunnel?.logTail) setPanelText("port-tunnel-log", data.tunnel.logTail);
         await getPortTunnels({ silent: true });
         return data;
       }
@@ -958,39 +1171,27 @@
 
       async function updateServiceStatus() {
         try {
-          const data = await fetchJson('/suoha-status');
+          const data = await fetchJson("/suoha-status");
           applyNamedTunnelUi(data.namedTunnelEnabled);
           setStatus("xray-status-indicator", "xray-status", data.xrayRunning, "运行中", "已停止");
           setStatus("argo-status-indicator", "argo-status", data.argoRunning, "运行中", "已停止");
           setStatus("overall-status-indicator", "overall-status", data.bothRunning, "正常", "未就绪");
+          setText("overview-tunnel", data.argoRunning ? "运行中" : "未运行");
           markRefreshed();
+          return data;
         } catch (error) {
           setStatus("xray-status-indicator", "xray-status", false, "运行中", "状态失败");
           setStatus("argo-status-indicator", "argo-status", false, "运行中", "状态失败");
           setStatus("overall-status-indicator", "overall-status", false, "正常", "检查失败");
           showError("获取服务状态失败: " + error.message);
-        }
-        try {
-          const baotaData = await updateBaotaStatus();
-          if (baotaData?.namedTunnelEnabled) {
-            applyNamedTunnelUi(true);
-            setStatus(
-              "argo-status-indicator",
-              "argo-status",
-              baotaData.tunnelRunning,
-              "运行中",
-              "已停止"
-            );
-          }
-        } catch (error) {
-          showError("获取宝塔状态失败: " + error.message);
+          throw error;
         }
       }
 
       async function getServerInfo() {
         setPanelText("server-info", "加载中...");
         try {
-          const data = await fetchJson('/server-info');
+          const data = await fetchJson("/server-info");
           setPanelText("server-info", data.info || data.error || "暂无服务器信息");
           markRefreshed();
         } catch (error) {
@@ -1001,11 +1202,28 @@
       async function getV2RayInfo() {
         setPanelText("v2ray-info", "加载中...");
         try {
-          const data = await fetchJson('/v2ray-info');
-          setPanelText("v2ray-info", data.content || data.error || "暂无链接信息");
+          const data = await fetchJson("/v2ray-info");
+          const content = data.content || data.error || "暂无链接信息";
+          setPanelText("v2ray-info", content);
+          setText("overview-subscription", content && !String(content).includes("未找到") ? "已生成" : "未生成");
           markRefreshed();
         } catch (error) {
+          setText("overview-subscription", "检查失败");
           setPanelText("v2ray-info", "获取V2Ray链接失败: " + error.message);
+        }
+      }
+
+      async function getNamedTunnelLog() {
+        setPanelText("named-tunnel-runtime-log", "加载中...");
+        try {
+          const data = await fetchJson("/logs");
+          applyNamedTunnelUi(data.namedTunnelEnabled);
+          setPanelText("named-tunnel-runtime-log", formatNamedTunnelLog(data));
+          markRefreshed();
+          return data;
+        } catch (error) {
+          setPanelText("named-tunnel-runtime-log", "获取固定隧道日志失败: " + error.message);
+          throw error;
         }
       }
 
@@ -1015,8 +1233,10 @@
         setPanelText("files-logs-content", "加载中...");
         setPanelText("argo-logs-content", "加载中...");
         setPanelText("baota-logs-content", "加载中...");
+        setPanelText("named-tunnel-runtime-log", "加载中...");
         try {
-          const data = await fetchJson('/logs');
+          const data = await fetchJson("/logs");
+          applyNamedTunnelUi(data.namedTunnelEnabled);
           setPanelText("system-logs-content", data.systemInfo || "暂无系统信息");
           setPanelText("process-logs-content", data.processes || "暂无进程信息");
           setPanelText("files-logs-content", [
@@ -1030,9 +1250,7 @@
             data.suohaLog || "暂无脚本日志",
             "===== xray.log =====",
             data.xrayLog || "暂无Xray日志",
-            data.namedTunnelEnabled
-              ? "===== 固定隧道日志 ====="
-              : "===== argo.log =====",
+            data.namedTunnelEnabled ? "===== 固定隧道日志 =====" : "===== argo.log =====",
             data.namedTunnelEnabled
               ? (data.tunnelLog || data.namedTunnelLog || "暂无固定隧道日志")
               : (data.argoLog || "暂无Argo日志"),
@@ -1047,13 +1265,12 @@
             "===== baota-install.log =====",
             data.baotaInstallLog || "暂无安装日志",
             "",
-            data.namedTunnelEnabled
-              ? "===== 固定隧道日志 ====="
-              : "===== baota-argo.log =====",
+            data.namedTunnelEnabled ? "===== 固定隧道日志 =====" : "===== baota-argo.log =====",
             data.namedTunnelEnabled
               ? (data.tunnelLog || data.namedTunnelLog || "暂无固定隧道日志")
               : (data.baotaTunnelLog || "暂无隧道日志"),
           ].join("\n"));
+          setPanelText("named-tunnel-runtime-log", formatNamedTunnelLog(data));
           markRefreshed();
         } catch (error) {
           const message = "获取日志失败: " + error.message;
@@ -1062,18 +1279,31 @@
           setPanelText("files-logs-content", message);
           setPanelText("argo-logs-content", message);
           setPanelText("baota-logs-content", message);
+          setPanelText("named-tunnel-runtime-log", message);
         }
       }
 
+      async function refreshOverview(options = {}) {
+        const tasks = [
+          updateServiceStatus(),
+          getV2RayInfo(),
+          getBaotaInfo(),
+        ];
+        if (!options.skipTunnelConfig && !isNamedTunnelTabActive()) {
+          tasks.push(getTunnelConfig());
+        }
+        await Promise.allSettled(tasks);
+      }
+
       function withButtonState(button, label, work) {
+        const original = button.textContent;
         button.disabled = true;
         button.textContent = label;
         return Promise.resolve(work())
-          .catch((error) => {
-            showError(error.message || String(error));
-          })
+          .catch((error) => showError(error.message || String(error)))
           .finally(() => {
             button.disabled = false;
+            button.textContent = original;
           });
       }
 
@@ -1081,12 +1311,10 @@
         setMessage(operationError, "", "");
         setMessage(operationResult, "", "");
         withButtonState(this, "启动中...", async () => {
-          this.textContent = "启动中...";
-          const data = await fetchJson('/start-suoha', { method: 'POST' });
-          showResult(`${data.message}，请稍后查看状态和日志。`);
-          await Promise.all([updateServiceStatus(), getV2RayInfo(), getLogs()]);
-        }).finally(() => {
-          this.textContent = "启动服务";
+          const data = await fetchJson("/start-suoha", { method: "POST" });
+          showResult(`${data.message}，请稍后刷新总览。`);
+          await refreshOverview();
+          await getLogs();
         });
       });
 
@@ -1094,11 +1322,10 @@
         setMessage(operationError, "", "");
         setMessage(operationResult, "", "");
         withButtonState(this, "重启中...", async () => {
-          const data = await fetchJson('/restart-suoha', { method: 'POST' });
-          showResult(`${data.message}，请稍后查看状态和日志。`);
-          await Promise.all([updateServiceStatus(), getV2RayInfo(), getLogs()]);
-        }).finally(() => {
-          this.textContent = "重启服务";
+          const data = await fetchJson("/restart-suoha", { method: "POST" });
+          showResult(`${data.message}，请稍后刷新总览。`);
+          await refreshOverview();
+          await getLogs();
         });
       });
 
@@ -1106,36 +1333,31 @@
         setMessage(operationError, "", "");
         setMessage(operationResult, "", "");
         withButtonState(this, "停止中...", async () => {
-          const data = await fetchJson('/stop-suoha', { method: 'POST' });
+          const data = await fetchJson("/stop-suoha", { method: "POST" });
           showResult(data.message || "服务停止成功");
-          await Promise.all([updateServiceStatus(), getLogs()]);
-        }).finally(() => {
-          this.textContent = "停止服务";
+          await updateServiceStatus();
+          await getLogs();
         });
+      });
+
+      refreshOverviewBtn.addEventListener("click", function() {
+        withButtonState(this, "刷新中...", refreshOverview);
       });
 
       refreshV2RayBtn.addEventListener("click", function() {
-        withButtonState(this, "刷新中...", getV2RayInfo).finally(() => {
-          this.textContent = "刷新链接";
-        });
+        withButtonState(this, "刷新中...", getV2RayInfo);
       });
 
       refreshServerBtn.addEventListener("click", function() {
-        withButtonState(this, "刷新中...", getServerInfo).finally(() => {
-          this.textContent = "刷新服务器信息";
-        });
+        withButtonState(this, "刷新中...", getServerInfo);
       });
 
       refreshLogsBtn.addEventListener("click", function() {
-        withButtonState(this, "刷新中...", getLogs).finally(() => {
-          this.textContent = "刷新日志";
-        });
+        withButtonState(this, "刷新中...", getLogs);
       });
 
       refreshBaotaBtn.addEventListener("click", function() {
-        withButtonState(this, "刷新中...", getBaotaInfo).finally(() => {
-          this.textContent = "刷新宝塔信息";
-        });
+        withButtonState(this, "刷新中...", getBaotaInfo);
       });
 
       startBaotaBtn.addEventListener("click", function() {
@@ -1143,31 +1365,18 @@
         setMessage(operationResult, "", "");
         withButtonState(this, "提交中...", async () => {
           const data = await fetchJson("/start-baota", { method: "POST" });
-          showResult(`${data.message}，请稍后刷新宝塔标签页与安装日志。`);
-          await Promise.all([getBaotaInfo(), getLogs()]);
-        }).finally(() => {
-          this.textContent = "启动宝塔";
+          showResult(`${data.message}，请稍后刷新宝塔。`);
+          await getBaotaInfo();
+          await getLogs();
         });
       });
 
-      if (restartTunnelBtn) {
-        restartTunnelBtn.addEventListener("click", function() {
-          setMessage(operationError, "", "");
-          setMessage(operationResult, "", "");
-          withButtonState(this, "重启中...", async () => {
-            const data = await fetchJson("/tunnel-sync", { method: "POST" });
-            showResult(data.ok === false ? (data.message || "固定隧道启动失败") : "固定隧道已启动，请查看固定隧道日志");
-            await Promise.all([updateServiceStatus(), getBaotaInfo(), getLogs()]);
-          }).finally(() => {
-            this.textContent = "启动固定隧道";
-          });
-        });
-      }
-
       refreshTunnelConfigBtn.addEventListener("click", function() {
-        withButtonState(this, "刷新中...", getTunnelConfig).finally(() => {
-          this.textContent = "刷新配置";
-        });
+        withButtonState(this, "刷新中...", getTunnelConfig);
+      });
+
+      refreshNamedTunnelLogBtn.addEventListener("click", function() {
+        withButtonState(this, "刷新中...", getNamedTunnelLog);
       });
 
       saveTunnelConfigBtn.addEventListener("click", function() {
@@ -1180,8 +1389,8 @@
             : "；路由已推送到 Cloudflare";
           showResult(`${data.message || "固定隧道配置已保存"}${routeMessage}`);
           applyNamedTunnelUi(data.configured);
-        }).finally(() => {
-          this.textContent = "保存配置";
+          await updateServiceStatus();
+          await getNamedTunnelLog();
         });
       });
 
@@ -1190,48 +1399,37 @@
         setMessage(operationResult, "", "");
         withButtonState(this, "启动中...", async () => {
           const data = await fetchJson("/tunnel-sync", { method: "POST" });
-          showResult(data.ok === false ? (data.message || "固定隧道启动失败") : "固定隧道已启动，请查看固定隧道日志");
-          await Promise.all([updateServiceStatus(), getBaotaInfo(), getLogs()]);
-        }).finally(() => {
-          this.textContent = "启动固定隧道";
+          showResult(data.ok === false ? (data.message || "固定隧道启动失败") : "固定隧道已启动");
+          await refreshOverview();
+          await getLogs();
         });
       });
 
       refreshPortTunnelsBtn.addEventListener("click", function() {
-        withButtonState(this, "刷新中...", getPortTunnels).finally(() => {
-          this.textContent = "刷新列表";
-        });
+        withButtonState(this, "刷新中...", getPortTunnels);
       });
 
       bindPortBtn.addEventListener("click", function() {
         setMessage(operationError, "", "");
         setMessage(operationResult, "", "");
         withButtonState(this, "绑定中...", async () => {
-          setPanelText("port-tunnel-log", "正在创建临时隧道，请稍候...");
+          setPanelText("port-tunnel-log", "正在创建隧道...");
           const data = await bindPort();
           showResult(`${data.message}${data.tunnel?.url ? `：${data.tunnel.url}` : ""}`);
-        }).finally(() => {
-          this.textContent = "绑定端口";
         });
       });
 
       portTunnelList.addEventListener("click", function(event) {
         const button = event.target.closest("[data-action]");
-        if (!button) {
-          return;
-        }
+        if (!button) return;
         const port = Number(button.dataset.port);
-        if (!Number.isInteger(port)) {
-          return;
-        }
+        if (!Number.isInteger(port)) return;
 
         if (button.dataset.action === "unbind") {
           setMessage(operationError, "", "");
           withButtonState(button, "解绑中...", async () => {
             const data = await unbindPort(port);
             showResult(data.message || `端口 ${port} 已解绑`);
-          }).finally(() => {
-            button.textContent = "解绑";
           });
           return;
         }
@@ -1241,8 +1439,6 @@
             const data = await getPortTunnels({ silent: true });
             const tunnel = (data.tunnels || []).find((item) => item.port === port);
             setPanelText("port-tunnel-log", tunnel?.logTail || "暂无该端口隧道日志");
-          }).finally(() => {
-            button.textContent = "查看日志";
           });
         }
       });
@@ -1251,20 +1447,14 @@
         withButtonState(this, "退出中...", async () => {
           const data = await fetchJson("/admin/logout", { method: "POST" });
           window.location.href = data.redirect || "/";
-        }).finally(() => {
-          this.textContent = "退出登录";
         });
       });
 
       setupTabs("infoTabs");
       setupTabs("logsSubTabs");
       setupTabs("baotaSubTabs");
-      applyNamedTunnelUi(false);
-      updateServiceStatus();
+      refreshOverview();
       getServerInfo();
-      getV2RayInfo();
-      getBaotaInfo();
-      getTunnelConfig();
       getPortTunnels();
       getLogs();
     });

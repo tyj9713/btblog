@@ -84,8 +84,18 @@ async function testNamedTunnelConfigPanelStructure() {
   assert.match(html, /id="start-tunnel-btn"/);
   assert.match(html, /id="tunnel-account-id"/);
   assert.match(html, /id="tunnel-id"/);
+  assert.match(html, /id="named-tunnel-runtime-log"/);
+  assert.match(html, /id="overview-tunnel-label"/);
   assert.match(html, /\/tunnel-config/);
   assert.match(html, /function\s+saveTunnelConfig\s*\(/);
+  assert.match(html, /function\s+isNamedTunnelTabActive\s*\(/);
+  assert.doesNotMatch(html, /restart-tunnel-btn/);
+}
+
+async function testOverviewRefreshSkipsTunnelConfigOnActiveTab() {
+  assert.match(html, /async function refreshOverview\(options = \{\}\)/);
+  assert.match(html, /!isNamedTunnelTabActive\(\)/);
+  assert.match(html, /setPanelText\("named-tunnel-runtime-log"/);
 }
 
 async function testPanelDoesNotAutoPoll() {
@@ -105,5 +115,6 @@ module.exports = {
   testPanelHasLogoutAction,
   testPortTunnelPanelStructure,
   testNamedTunnelConfigPanelStructure,
+  testOverviewRefreshSkipsTunnelConfigOnActiveTab,
   testPanelDoesNotAutoPoll,
 };
