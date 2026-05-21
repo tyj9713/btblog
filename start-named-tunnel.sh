@@ -6,6 +6,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 RUNTIME_DIR="${ARGO_RUNTIME_DIR:-$SCRIPT_DIR}"
 cd "$RUNTIME_DIR"
 
+if [ -f "${RUNTIME_DIR}/named-tunnel.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "${RUNTIME_DIR}/named-tunnel.env"
+  set +a
+fi
+
 LOG="${RUNTIME_DIR}/named-tunnel.log"
 TOKEN="${CLOUDFLARE_TUNNEL_TOKEN:-${APPSETTING_CLOUDFLARE_TUNNEL_TOKEN:-}}"
 LOCAL_CONFIG="${CLOUDFLARE_TUNNEL_LOCAL_CONFIG:-${APPSETTING_CLOUDFLARE_TUNNEL_LOCAL_CONFIG:-false}}"

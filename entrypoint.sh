@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-cd "$script_dir" || exit 1
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+script_dir="$SCRIPT_DIR"
+cd "$SCRIPT_DIR" || exit 1
+RUNTIME_DIR="${ARGO_RUNTIME_DIR:-$SCRIPT_DIR}"
+if [ -f "${RUNTIME_DIR}/named-tunnel.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "${RUNTIME_DIR}/named-tunnel.env"
+  set +a
+fi
 
 # 哪吒的4个参数
 NEZHA_SERVER="ip-tz.971314.xyz"

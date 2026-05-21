@@ -535,18 +535,49 @@ keep_baota_alive();
 
 console.log("固定隧道不会自动启动，请在管理面板保存配置后手动启动");
 
-// 启动entrypoint.sh脚本
-exec(`bash ${shellQuote(path.join(__dirname, 'entrypoint.sh'))}`, {
-  cwd: runtimeDir,
-  timeout: 120000,
-  maxBuffer: 4 * 1024 * 1024,
-}, function (err, stdout, stderr) {
-  if (err) {
-    console.error("Error executing entrypoint.sh: ", err);
-  } else {
-    console.log("entrypoint.sh executed successfully: ", stdout);
+async function bootstrapNamedTunnelConfig() {
+  cloudflareTunnelManager.syncRuntimeConfig();
+  if (!cloudflareTunnelManager.isEnabled()) {
+    return;
   }
-});
+
+  try {
+    const result = await cloudflareTunnelManager.publishRoutes("startup");
+    if (result.skipped) {
+      console.log(`启动时跳过路由推送: ${result.reason || "未执行"}`);
+    } else {
+      console.log("启动时已同步 Cloudflare 隧道路由");
+    }
+  } catch (error) {
+    console.warn(`启动时推送隧道路由失败: ${error.message}`);
+  }
+}
+
+function startEntrypoint() {
+  exec(`bash ${shellQuote(path.join(__dirname, 'entrypoint.sh'))}`, {
+    cwd: runtimeDir,
+    env: {
+      ...process.env,
+      ARGO_RUNTIME_DIR: runtimeDir,
+    },
+    timeout: 120000,
+    maxBuffer: 4 * 1024 * 1024,
+  }, function (err, stdout, stderr) {
+    if (err) {
+      console.error("Error executing entrypoint.sh: ", err);
+    } else {
+      console.log("entrypoint.sh executed successfully: ", stdout);
+    }
+  });
+}
+
+bootstrapNamedTunnelConfig()
+  .catch((error) => {
+    console.warn(`固定隧道配置引导失败: ${error.message}`);
+  })
+  .finally(() => {
+    startEntrypoint();
+  });
 
 // 启动express服务器
 const port = process.env.PORT || 443;

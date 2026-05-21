@@ -15,7 +15,12 @@ async function testLocalConfigUsesOfficialRunParameterOrder() {
   assert.match(script, /tunnel --config \$\{quoted_config\} --no-autoupdate run/);
 }
 
+async function testNamedTunnelLoadsStoredEnvFile() {
+  assert.match(script, /named-tunnel\.env/);
+}
+
 module.exports = {
   testNamedTunnelUsesExplicitTokenFlag,
   testLocalConfigUsesOfficialRunParameterOrder,
+  testNamedTunnelLoadsStoredEnvFile,
 };

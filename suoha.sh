@@ -1,5 +1,12 @@
 #!/bin/bash
 # onekey suoha
+RUNTIME_DIR="${ARGO_RUNTIME_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)}"
+if [ -f "${RUNTIME_DIR}/named-tunnel.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "${RUNTIME_DIR}/named-tunnel.env"
+  set +a
+fi
 linux_os=("Debian" "Ubuntu" "CentOS" "Fedora" "Alpine")
 linux_update=("apt update" "apt update" "yum -y update" "yum -y update" "apk update")
 linux_install=("apt -y install" "apt -y install" "yum -y install" "yum -y install" "apk add -f")

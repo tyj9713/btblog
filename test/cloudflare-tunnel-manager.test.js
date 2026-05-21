@@ -141,9 +141,97 @@ async function testConfigStatusExposesAccountAndTunnelIds() {
   }
 }
 
+async function testStoredConfigOverridesProcessEnvForShellScripts() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "named-tunnel-manager-"));
+  try {
+    const settingsFile = path.join(dir, "named-tunnel-settings.json");
+    fs.writeFileSync(
+      settingsFile,
+      JSON.stringify({
+        CLOUDFLARE_TUNNEL_TOKEN: "file-token",
+        TUNNEL_NODE_HOSTNAME: "node.new.example.com",
+        TUNNEL_BT_HOSTNAME: "bt.new.example.com",
+      }),
+      "utf8"
+    );
+    const env = {
+      CLOUDFLARE_TUNNEL_TOKEN: "env-token",
+      TUNNEL_NODE_HOSTNAME: "node.old.example.com",
+      TUNNEL_BT_HOSTNAME: "bt.old.example.com",
+    };
+    const manager = new CloudflareTunnelManager({
+      cwd: dir,
+      settingsFile,
+      env,
+      execAsync: async () => ({ stdout: "", stderr: "" }),
+    });
+
+    manager.applyStoredConfigToProcessEnv(env);
+    manager.writeShellEnvFile();
+    assert.equal(env.TUNNEL_NODE_HOSTNAME, "node.new.example.com");
+    assert.equal(env.TUNNEL_BT_HOSTNAME, "bt.new.example.com");
+    assert.equal(env.CLOUDFLARE_TUNNEL_TOKEN, "file-token");
+
+    const shellEnv = fs.readFileSync(path.join(dir, "named-tunnel.env"), "utf8");
+    assert.match(shellEnv, /export TUNNEL_NODE_HOSTNAME='node\.new\.example\.com'/);
+    assert.match(shellEnv, /export TUNNEL_BT_HOSTNAME='bt\.new\.example\.com'/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+async function testSaveConfigPreservesExistingHostnamesWhenBlank() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "named-tunnel-manager-"));
+  try {
+    const settingsFile = path.join(dir, "named-tunnel-settings.json");
+    fs.writeFileSync(
+      settingsFile,
+      JSON.stringify({
+        CLOUDFLARE_TUNNEL_TOKEN: "existing-token",
+        TUNNEL_NODE_HOSTNAME: "node.example.com",
+        TUNNEL_BT_HOSTNAME: "bt.example.com",
+      }),
+      "utf8"
+    );
+    const manager = new CloudflareTunnelManager({
+      cwd: dir,
+      settingsFile,
+      env: {},
+      execAsync: async () => ({ stdout: "", stderr: "" }),
+    });
+
+    const originalFetch = global.fetch;
+    global.fetch = async () => ({
+      ok: true,
+      async json() {
+        return { success: true, result: { id: "ok" } };
+      },
+    });
+    try {
+      await manager.saveConfig({
+        CLOUDFLARE_TUNNEL_TOKEN: "",
+        TUNNEL_NODE_HOSTNAME: "",
+        TUNNEL_BT_HOSTNAME: "bt.updated.example.com",
+        CLOUDFLARE_ACCOUNT_ID: "account-id",
+        CLOUDFLARE_TUNNEL_ID: "tunnel-id",
+      });
+    } finally {
+      global.fetch = originalFetch;
+    }
+
+    const stored = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
+    assert.equal(stored.TUNNEL_NODE_HOSTNAME, "node.example.com");
+    assert.equal(stored.TUNNEL_BT_HOSTNAME, "bt.updated.example.com");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 module.exports = {
   testConfigFileOverridesEnvironment,
   testEnvironmentAloneDoesNotEnableManagedTunnel,
   testSaveConfigPreservesExistingSecretsWhenBlank,
   testConfigStatusExposesAccountAndTunnelIds,
+  testStoredConfigOverridesProcessEnvForShellScripts,
+  testSaveConfigPreservesExistingHostnamesWhenBlank,
 };

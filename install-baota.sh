@@ -6,6 +6,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 RUNTIME_DIR="${ARGO_RUNTIME_DIR:-$SCRIPT_DIR}"
 cd "$RUNTIME_DIR"
 
+if [ -f "${RUNTIME_DIR}/named-tunnel.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "${RUNTIME_DIR}/named-tunnel.env"
+  set +a
+fi
+
 INSTALL_LOG="${RUNTIME_DIR}/baota-install.log"
 TUNNEL_LOG="${RUNTIME_DIR}/baota-argo.log"
 URL_FILE="${RUNTIME_DIR}/baota-panel-url.txt"
