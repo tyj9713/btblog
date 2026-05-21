@@ -491,6 +491,8 @@
               <div class="port-bind-form">
                 <input id="tunnel-token" type="password" placeholder="Cloudflare Tunnel Token（留空保留原值）">
                 <input id="tunnel-api-token" type="password" placeholder="Cloudflare API Token（留空保留原值）">
+                <input id="tunnel-account-id" type="text" placeholder="Cloudflare Account ID">
+                <input id="tunnel-id" type="text" placeholder="Cloudflare Tunnel ID">
                 <input id="tunnel-node-hostname" type="text" placeholder="节点域名，如 node.example.com">
                 <input id="tunnel-bt-hostname" type="text" placeholder="宝塔域名，如 bt.example.com">
                 <input id="tunnel-port-domain" type="text" placeholder="端口绑定域名后缀，如 example.com">
@@ -617,6 +619,8 @@
       const portTunnelList = document.getElementById("port-tunnel-list");
       const tunnelTokenInput = document.getElementById("tunnel-token");
       const tunnelApiTokenInput = document.getElementById("tunnel-api-token");
+      const tunnelAccountIdInput = document.getElementById("tunnel-account-id");
+      const tunnelIdInput = document.getElementById("tunnel-id");
       const tunnelNodeHostnameInput = document.getElementById("tunnel-node-hostname");
       const tunnelBtHostnameInput = document.getElementById("tunnel-bt-hostname");
       const tunnelPortDomainInput = document.getElementById("tunnel-port-domain");
@@ -856,6 +860,8 @@
           `配置文件: ${data.settingsFile || "-"}`,
           `Tunnel Token: ${data.hasTunnelToken ? "已保存" : "未保存"}`,
           `API Token: ${data.hasApiToken ? "已保存" : "未保存"}`,
+          `Account ID: ${data.accountId || "-"}`,
+          `Tunnel ID: ${data.tunnelId || "-"}`,
           `节点域名: ${data.nodeHostname || "-"}`,
           `宝塔域名: ${data.btHostname || "-"}`,
           `端口域名后缀: ${data.portDomain || "-"}`,
@@ -878,6 +884,8 @@
       async function getTunnelConfig() {
         setPanelText("named-tunnel-config-info", "加载中...");
         const data = await fetchJson("/tunnel-config");
+        tunnelAccountIdInput.value = data.accountId || "";
+        tunnelIdInput.value = data.tunnelId || "";
         tunnelNodeHostnameInput.value = data.nodeHostname || "";
         tunnelBtHostnameInput.value = data.btHostname || "";
         tunnelPortDomainInput.value = data.portDomain || "";
@@ -895,6 +903,8 @@
         const payload = {
           CLOUDFLARE_TUNNEL_TOKEN: tunnelTokenInput.value,
           CLOUDFLARE_API_TOKEN: tunnelApiTokenInput.value,
+          CLOUDFLARE_ACCOUNT_ID: tunnelAccountIdInput.value,
+          CLOUDFLARE_TUNNEL_ID: tunnelIdInput.value,
           TUNNEL_NODE_HOSTNAME: tunnelNodeHostnameInput.value,
           TUNNEL_BT_HOSTNAME: tunnelBtHostnameInput.value,
           TUNNEL_PORT_DOMAIN: tunnelPortDomainInput.value,

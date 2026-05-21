@@ -84,6 +84,8 @@ npm start
 |------|------|------|
 | Tunnel Token | 无 | Cloudflare 控制台创建隧道后给出的 `cloudflared tunnel run --token ...` 中的 token |
 | API Token | 无 | 用于保存配置时通过 Cloudflare API 推送 ingress 路由 |
+| Account ID | 无 | Cloudflare 账户 ID，用于 API 推送路由 |
+| Tunnel ID | 无 | Cloudflare Tunnel UUID，用于 API 推送路由 |
 | 节点域名 | 无 | 如 `node.example.com` |
 | 宝塔域名 | 无 | 如 `bt.example.com` |
 | 端口域名后缀 | 无 | 端口绑定域名后缀；绑定 8080 时默认生成 `p8080.example.com` |
@@ -214,7 +216,7 @@ npm start
    - `node.example.com` → `<tunnel-id>.cfargotunnel.com`
    - `bt.example.com` → `<tunnel-id>.cfargotunnel.com`
    - 端口绑定建议加通配符：`*.example.com` → `<tunnel-id>.cfargotunnel.com`（配合默认 `p8080.example.com` 规则）
-6. 部署后打开后台面板 → 固定隧道，填写 Tunnel Token、API Token、节点域名、宝塔域名和端口域名后缀
+6. 部署后打开后台面板 → 固定隧道，填写 Tunnel Token、API Token、Account ID、Tunnel ID、节点域名、宝塔域名和端口域名后缀
 7. 点击「保存配置」写入 `named-tunnel-settings.json`，程序会尝试通过 Cloudflare API 推送路由
 8. 点击「启动固定隧道」后才会启动名为 `btblog-named-tunnel` 的进程
 

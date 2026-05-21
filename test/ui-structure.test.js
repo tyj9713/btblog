@@ -82,6 +82,8 @@ async function testNamedTunnelConfigPanelStructure() {
   assert.match(html, /id="named-tunnel-content"/);
   assert.match(html, /id="save-tunnel-config-btn"/);
   assert.match(html, /id="start-tunnel-btn"/);
+  assert.match(html, /id="tunnel-account-id"/);
+  assert.match(html, /id="tunnel-id"/);
   assert.match(html, /\/tunnel-config/);
   assert.match(html, /function\s+saveTunnelConfig\s*\(/);
 }

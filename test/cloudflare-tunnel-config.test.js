@@ -77,6 +77,20 @@ async function testOpaqueTokenEnablesRemoteConnector() {
   assert.equal(settings.useRemoteConfig, true);
 }
 
+async function testExplicitAccountAndTunnelIdsBuildCredentials() {
+  const settings = resolveTunnelSettings({
+    CLOUDFLARE_TUNNEL_TOKEN: "opaque-dashboard-token",
+    CLOUDFLARE_ACCOUNT_ID: "account-id",
+    CLOUDFLARE_TUNNEL_ID: "tunnel-id",
+  });
+
+  assert.equal(settings.enabled, true);
+  assert.equal(settings.accountId, "account-id");
+  assert.equal(settings.tunnelId, "tunnel-id");
+  assert.equal(settings.credentials.AccountTag, "account-id");
+  assert.equal(settings.credentials.TunnelID, "tunnel-id");
+}
+
 async function testRemoteConfigDoesNotRequireLocalCredentialsOrHostname() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "named-tunnel-remote-"));
   try {
@@ -163,6 +177,7 @@ module.exports = {
   testResolveTunnelSettings,
   testResolveAzureAppSettingFallback,
   testOpaqueTokenEnablesRemoteConnector,
+  testExplicitAccountAndTunnelIdsBuildCredentials,
   testRemoteConfigDoesNotRequireLocalCredentialsOrHostname,
   testLocalConfigStillRequiresCredentials,
   testBuildPortHostname,
