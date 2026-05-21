@@ -31,7 +31,7 @@ npm start
 
 ### Azure Linux Web App
 
-1. 部署方式：Git / ZIP / GitHub Actions，启动命令 **`npm start`**
+1. 部署方式：Git / ZIP / GitHub Actions，启动命令 **`npm start`**（不要把 App Service Startup Command 改成 `cloudflared-linux tunnel run`，否则 Node Web 进程不会监听 Azure 注入的 `PORT`）
 2. **配置 → 应用程序设置** 至少设置 `ADMIN_PASSWORD`
 3. **配置 → 常规设置** 开启 **Always On**，Health check path = `/healthz`
 4. 应用启动后 `entrypoint.sh` 会自动后台跑 `suoha.sh` 与 `install-baota.sh`

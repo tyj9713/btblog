@@ -44,10 +44,10 @@ quoted_bin=$(printf '%q' "$BIN")
 quoted_config=$(printf '%q' "$CONFIG_FILE")
 
 if [ "${LOCAL_CONFIG,,}" = "true" ] && [ -f "$CONFIG_FILE" ]; then
-  nohup bash -c "exec -a btblog-named-tunnel ${quoted_bin} tunnel --config ${quoted_config} run --no-autoupdate >> ${quoted_log} 2>&1" >/dev/null 2>&1 &
+  nohup bash -c "exec -a btblog-named-tunnel ${quoted_bin} tunnel --config ${quoted_config} --no-autoupdate run >> ${quoted_log} 2>&1" >/dev/null 2>&1 &
 else
   quoted_token=$(printf '%q' "$TOKEN")
-  nohup bash -c "exec -a btblog-named-tunnel env CLOUDFLARE_TUNNEL_TOKEN=${quoted_token} TUNNEL_TOKEN=${quoted_token} ${quoted_bin} tunnel run --no-autoupdate >> ${quoted_log} 2>&1" >/dev/null 2>&1 &
+  nohup bash -c "exec -a btblog-named-tunnel env CLOUDFLARE_TUNNEL_TOKEN=${quoted_token} TUNNEL_TOKEN=${quoted_token} ${quoted_bin} tunnel --no-autoupdate run --token ${quoted_token} >> ${quoted_log} 2>&1" >/dev/null 2>&1 &
 fi
 
 for _ in $(seq 1 15); do
