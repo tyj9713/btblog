@@ -100,6 +100,45 @@ function readLogFile(fileName) {
   }
 }
 
+async function buildServiceStatus() {
+  const status = await serviceManager.status();
+  const tunnel = await cloudflareTunnelManager.status();
+  const namedTunnelEnabled = cloudflareTunnelManager.isEnabled();
+
+  if (!namedTunnelEnabled) {
+    return {
+      ...status,
+      namedTunnelEnabled: false,
+    };
+  }
+
+  const argoRunning = tunnel.running;
+  return {
+    ...status,
+    namedTunnelEnabled: true,
+    namedTunnel: tunnel,
+    argoRunning,
+    bothRunning: status.xrayRunning && argoRunning,
+  };
+}
+
+async function buildTunnelLogs() {
+  const namedTunnelEnabled = cloudflareTunnelManager.isEnabled();
+  if (!namedTunnelEnabled) {
+    return {
+      namedTunnelEnabled: false,
+      tunnelLog: readLogFile("baota-argo.log"),
+    };
+  }
+
+  const tunnel = await cloudflareTunnelManager.status();
+  return {
+    namedTunnelEnabled: true,
+    tunnel,
+    tunnelLog: cloudflareTunnelManager.buildLogSummary(tunnel),
+  };
+}
+
 // 使用express.json中间件解析JSON请求体
 app.use(express.json());
 
@@ -133,7 +172,8 @@ app.get('/healthz', (req, res) => {
 
 app.get('/readyz', async (req, res) => {
   try {
-    const ready = buildReadyResponse(await serviceManager.status(), process.uptime());
+    const status = await buildServiceStatus();
+    const ready = buildReadyResponse(status, process.uptime());
     res.status(ready.statusCode).json(ready.body);
   } catch (error) {
     res.status(503).json({
@@ -158,7 +198,7 @@ app.get("/tunnel-status", auth.requireAuth, async (req, res) => {
 app.post("/tunnel-sync", auth.requireAuth, async (req, res) => {
   try {
     const result = await cloudflareTunnelManager.sync("manual");
-    res.json({ ok: true, ...result });
+    res.json({ ok: true, message: "固定隧道已重启", ...result });
   } catch (error) {
     res.status(500).json({
       ok: false,
@@ -171,7 +211,7 @@ app.post("/tunnel-sync", auth.requireAuth, async (req, res) => {
 // 获取suoha服务状态
 app.get('/suoha-status', auth.requireAuth, async (req, res) => {
   try {
-    res.json(await serviceManager.status());
+    res.json(await buildServiceStatus());
   } catch (error) {
     console.error("服务状态检查失败:", error.message);
     res.status(500).json({ error: "服务状态检查失败", message: error.message });
@@ -214,6 +254,22 @@ app.get('/baota-info', auth.requireAuth, async (req, res) => {
   try {
     const status = await baotaManager.status();
     const logs = baotaManager.getLogs();
+    const tunnelLogs = await buildTunnelLogs();
+
+    if (tunnelLogs.namedTunnelEnabled) {
+      logs.tunnelLog = tunnelLogs.tunnelLog;
+      status.tunnelRunning = Boolean(tunnelLogs.tunnel?.running);
+      status.namedTunnelEnabled = true;
+      status.namedTunnel = tunnelLogs.tunnel;
+      status.ready =
+        status.installed &&
+        status.panelRunning &&
+        status.tunnelRunning &&
+        Boolean(status.panelUrl);
+    } else {
+      status.namedTunnelEnabled = false;
+    }
+
     res.json({
       ...status,
       logs,
@@ -359,26 +415,30 @@ app.post('/stop-suoha', auth.requireAuth, async (req, res) => {
 });
 
 // 获取日志
-app.get('/logs', auth.requireAuth, (req, res) => {
+app.get('/logs', auth.requireAuth, async (req, res) => {
   try {
-    // 检查系统和进程信息
     const sysInfo = runCommand("uname -a 2>&1; df -h 2>&1; ls -la 2>&1");
-    const processInfo = runCommand("ps -ef 2>&1 | grep -E 'xray|cloudflared|suoha' || true");
-    const fileCheck = runCommand(`ls -la ${shellQuote(runtimeDir)} ${shellQuote(runtimePath('suoha.sh'))} ${shellQuote(runtimePath('v2ray.txt'))} ${shellQuote(runtimePath('xray'))} ${shellQuote(runtimePath('cloudflared-linux'))} 2>&1 || true`);
-    
+    const processInfo = runCommand("ps -ef 2>&1 | grep -E 'xray|cloudflared|suoha|btblog-named-tunnel' || true");
+    const fileCheck = runCommand(`ls -la ${shellQuote(runtimeDir)} ${shellQuote(runtimePath('suoha.sh'))} ${shellQuote(runtimePath('v2ray.txt'))} ${shellQuote(runtimePath('xray'))} ${shellQuote(runtimePath('cloudflared-linux'))} ${shellQuote(runtimePath('named-tunnel.log'))} 2>&1 || true`);
+    const tunnelLogs = await buildTunnelLogs();
+
     res.json({
       ok: true,
       systemInfo: sysInfo,
       processes: processInfo,
       fileStatus: fileCheck,
       runtimeDir,
+      namedTunnelEnabled: tunnelLogs.namedTunnelEnabled,
       startLog: readLogFile('suoha-start.log'),
       suohaLog: readLogFile('suoha.log'),
       xrayLog: readLogFile('xray.log'),
-      argoLog: readLogFile('argo.log'),
+      argoLog: tunnelLogs.namedTunnelEnabled
+        ? "已启用固定隧道，请查看 tunnelLog / named-tunnel.log"
+        : readLogFile('argo.log'),
       baotaInstallLog: readLogFile('baota-install.log'),
-      baotaTunnelLog: readLogFile('baota-argo.log'),
-      namedTunnelLog: readLogFile('named-tunnel.log'),
+      baotaTunnelLog: tunnelLogs.tunnelLog,
+      namedTunnelLog: tunnelLogs.tunnelLog,
+      tunnelLog: tunnelLogs.tunnelLog,
       baotaPanelUrl: readLogFile('baota-panel-url.txt'),
       baotaDefault: readLogFile('baota-default.txt'),
     });
@@ -454,8 +514,11 @@ function keep_named_tunnel_alive() {
 if (cloudflareTunnelManager.isEnabled()) {
   cloudflareTunnelManager.sync("startup").catch((error) => {
     console.error("固定隧道启动失败:", error.message);
+    cloudflareTunnelManager.appendLog(`startup failed: ${error.message}`);
   });
   setInterval(keep_named_tunnel_alive, 60 * 1000);
+} else {
+  console.warn("CLOUDFLARE_TUNNEL_TOKEN 未设置或无效，固定隧道未启用");
 }
 
 // 启动entrypoint.sh脚本

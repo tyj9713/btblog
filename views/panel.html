@@ -377,7 +377,7 @@
               </div>
               <div class="status-row">
                 <div class="status-indicator status-stopped" id="argo-status-indicator"></div>
-                <span class="status-label">Argo</span>
+                <span class="status-label" id="argo-status-label">固定隧道</span>
                 <span id="argo-status" class="status-value">检查中</span>
               </div>
               <div class="status-row">
@@ -390,9 +390,9 @@
                 <span class="status-label">宝塔面板</span>
                 <span id="baota-panel-status" class="status-value">检查中</span>
               </div>
-              <div class="status-row">
+              <div class="status-row" id="baota-tunnel-status-row">
                 <div class="status-indicator status-stopped" id="baota-tunnel-status-indicator"></div>
-                <span class="status-label">宝塔隧道</span>
+                <span class="status-label">Quick 隧道</span>
                 <span id="baota-tunnel-status" class="status-value">检查中</span>
               </div>
             </div>
@@ -411,8 +411,9 @@
               <button id="restart-btn" class="btn btn-control btn-restart">重启服务</button>
               <button id="stop-btn" class="btn btn-control btn-stop">停止服务</button>
               <button id="start-baota-btn" class="btn btn-control btn-refresh">启动宝塔</button>
+              <button id="restart-tunnel-btn" class="btn btn-control btn-refresh">重启固定隧道</button>
             </div>
-            <p class="panel-note" style="margin: 12px 0 0;">宝塔保活每 3 分钟自动检查安装与隧道。</p>
+            <p class="panel-note" style="margin: 12px 0 0;">固定隧道启用后，节点与宝塔共用同一条 Cloudflare Tunnel。</p>
           </div>
         </div>
       </aside>
@@ -466,7 +467,7 @@
                   <button class="nav-link active" id="baota-install-tab" data-bs-toggle="pill" data-bs-target="#baota-install-logs" type="button" role="tab" aria-controls="baota-install-logs" aria-selected="true">安装日志</button>
                 </li>
                 <li class="nav-item" role="presentation">
-                  <button class="nav-link" id="baota-tunnel-tab" data-bs-toggle="pill" data-bs-target="#baota-tunnel-logs" type="button" role="tab" aria-controls="baota-tunnel-logs" aria-selected="false">隧道日志</button>
+                  <button class="nav-link" id="baota-tunnel-tab" data-bs-toggle="pill" data-bs-target="#baota-tunnel-logs" type="button" role="tab" aria-controls="baota-tunnel-logs" aria-selected="false"><span id="baota-tunnel-tab-label">固定隧道日志</span></button>
                 </li>
               </ul>
               <div class="tab-content" id="baotaSubTabContent">
@@ -516,7 +517,7 @@
                   <button class="nav-link" id="files-logs-tab" data-bs-toggle="pill" data-bs-target="#files-logs" type="button" role="tab" aria-controls="files-logs" aria-selected="false">文件信息</button>
                 </li>
                 <li class="nav-item" role="presentation">
-                  <button class="nav-link" id="argo-logs-tab" data-bs-toggle="pill" data-bs-target="#argo-logs" type="button" role="tab" aria-controls="argo-logs" aria-selected="false">Argo日志</button>
+                  <button class="nav-link" id="argo-logs-tab" data-bs-toggle="pill" data-bs-target="#argo-logs" type="button" role="tab" aria-controls="argo-logs" aria-selected="false"><span id="argo-logs-tab-label">服务日志</span></button>
                 </li>
                 <li class="nav-item" role="presentation">
                   <button class="nav-link" id="baota-logs-tab" data-bs-toggle="pill" data-bs-target="#baota-logs" type="button" role="tab" aria-controls="baota-logs" aria-selected="false">宝塔日志</button>
@@ -559,6 +560,31 @@
       const refreshBaotaBtn = document.getElementById("refresh-baota");
       const startBaotaBtn = document.getElementById("start-baota-btn");
       const refreshPortTunnelsBtn = document.getElementById("refresh-port-tunnels");
+      const restartTunnelBtn = document.getElementById("restart-tunnel-btn");
+      let namedTunnelEnabled = false;
+
+      function applyNamedTunnelUi(enabled) {
+        namedTunnelEnabled = Boolean(enabled);
+        const argoLabel = document.getElementById("argo-status-label");
+        const baotaTunnelRow = document.getElementById("baota-tunnel-status-row");
+        const baotaTunnelTabLabel = document.getElementById("baota-tunnel-tab-label");
+        const argoLogsTabLabel = document.getElementById("argo-logs-tab-label");
+        if (argoLabel) {
+          argoLabel.textContent = namedTunnelEnabled ? "固定隧道" : "Argo";
+        }
+        if (baotaTunnelRow) {
+          baotaTunnelRow.style.display = namedTunnelEnabled ? "none" : "";
+        }
+        if (baotaTunnelTabLabel) {
+          baotaTunnelTabLabel.textContent = namedTunnelEnabled ? "固定隧道日志" : "Quick 隧道日志";
+        }
+        if (argoLogsTabLabel) {
+          argoLogsTabLabel.textContent = namedTunnelEnabled ? "服务日志" : "Argo日志";
+        }
+        if (restartTunnelBtn) {
+          restartTunnelBtn.style.display = namedTunnelEnabled ? "" : "none";
+        }
+      }
       const bindPortBtn = document.getElementById("bind-port-btn");
       const portInput = document.getElementById("port-input");
       const portProtocol = document.getElementById("port-protocol");
@@ -662,8 +688,10 @@
           lines.push("", "状态: 已就绪（面板 + 隧道 + 外网地址）");
         } else if (data.panelRunning === false && data.tunnelRunning) {
           lines.push("", "状态: 面板已停止但隧道仍在运行，外网地址可能失效。请点击「启动宝塔」或等待保活自动修复。");
+        } else if (data.namedTunnelEnabled && data.tunnelRunning === false) {
+          lines.push("", "状态: 固定隧道未运行，请点击「重启固定隧道」并查看固定隧道日志。");
         } else if (data.panelRunning && data.tunnelRunning === false) {
-          lines.push("", "状态: 面板在运行但隧道未就绪，请点击「启动宝塔」重建隧道。");
+          lines.push("", "状态: 面板在运行但 Quick 隧道未就绪，请点击「启动宝塔」重建隧道。");
         } else {
           lines.push("", "状态: 面板或隧道未就绪，请点击「启动宝塔」并查看下方日志");
         }
@@ -824,6 +852,7 @@
       async function updateServiceStatus() {
         try {
           const data = await fetchJson('/suoha-status');
+          applyNamedTunnelUi(data.namedTunnelEnabled);
           setStatus("xray-status-indicator", "xray-status", data.xrayRunning, "运行中", "已停止");
           setStatus("argo-status-indicator", "argo-status", data.argoRunning, "运行中", "已停止");
           setStatus("overall-status-indicator", "overall-status", data.bothRunning, "正常", "未就绪");
@@ -835,7 +864,17 @@
           showError("获取服务状态失败: " + error.message);
         }
         try {
-          await updateBaotaStatus();
+          const baotaData = await updateBaotaStatus();
+          if (baotaData?.namedTunnelEnabled) {
+            applyNamedTunnelUi(true);
+            setStatus(
+              "argo-status-indicator",
+              "argo-status",
+              baotaData.tunnelRunning,
+              "运行中",
+              "已停止"
+            );
+          }
         } catch (error) {
           showError("获取宝塔状态失败: " + error.message);
         }
@@ -884,8 +923,12 @@
             data.suohaLog || "暂无脚本日志",
             "===== xray.log =====",
             data.xrayLog || "暂无Xray日志",
-            "===== argo.log =====",
-            data.argoLog || "暂无Argo日志",
+            data.namedTunnelEnabled
+              ? "===== 固定隧道日志 ====="
+              : "===== argo.log =====",
+            data.namedTunnelEnabled
+              ? (data.tunnelLog || data.namedTunnelLog || "暂无固定隧道日志")
+              : (data.argoLog || "暂无Argo日志"),
           ].join("\n"));
           setPanelText("baota-logs-content", [
             "===== baota-panel-url.txt =====",
@@ -897,8 +940,12 @@
             "===== baota-install.log =====",
             data.baotaInstallLog || "暂无安装日志",
             "",
-            "===== baota-argo.log =====",
-            data.baotaTunnelLog || "暂无隧道日志",
+            data.namedTunnelEnabled
+              ? "===== 固定隧道日志 ====="
+              : "===== baota-argo.log =====",
+            data.namedTunnelEnabled
+              ? (data.tunnelLog || data.namedTunnelLog || "暂无固定隧道日志")
+              : (data.baotaTunnelLog || "暂无隧道日志"),
           ].join("\n"));
           markRefreshed();
         } catch (error) {
@@ -996,6 +1043,20 @@
         });
       });
 
+      if (restartTunnelBtn) {
+        restartTunnelBtn.addEventListener("click", function() {
+          setMessage(operationError, "", "");
+          setMessage(operationResult, "", "");
+          withButtonState(this, "重启中...", async () => {
+            const data = await fetchJson("/tunnel-sync", { method: "POST" });
+            showResult(data.ok === false ? (data.message || "固定隧道重启失败") : "固定隧道已重启，请查看固定隧道日志");
+            await Promise.all([updateServiceStatus(), getBaotaInfo(), getLogs()]);
+          }).finally(() => {
+            this.textContent = "重启固定隧道";
+          });
+        });
+      }
+
       refreshPortTunnelsBtn.addEventListener("click", function() {
         withButtonState(this, "刷新中...", getPortTunnels).finally(() => {
           this.textContent = "刷新列表";
@@ -1058,6 +1119,7 @@
       setupTabs("infoTabs");
       setupTabs("logsSubTabs");
       setupTabs("baotaSubTabs");
+      applyNamedTunnelUi(false);
       updateServiceStatus();
       getServerInfo();
       getV2RayInfo();
