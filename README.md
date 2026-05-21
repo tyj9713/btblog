@@ -78,22 +78,20 @@ npm start
 
 ### Cloudflare 固定隧道（Named Tunnel）
 
-设置 `CLOUDFLARE_TUNNEL_TOKEN` 后启用。程序会统一启动 **一个** `cloudflared` 进程，节点 / 宝塔 / 端口绑定共用，不再使用 `trycloudflare.com` 临时地址。
+固定隧道通过后台面板写入 `named-tunnel-settings.json` 后启用。程序不会在启动时自动拉起固定隧道；保存配置后再点击「启动固定隧道」，节点 / 宝塔 / 端口绑定共用同一个 `cloudflared` 进程。
 
-| 变量 | 默认 | 说明 |
+| 配置项 | 默认 | 说明 |
 |------|------|------|
-| `CLOUDFLARE_TUNNEL_TOKEN` | 无 | Cloudflare 控制台创建隧道后给出的 `cloudflared tunnel run --token ...` 中的 token |
-| `CLOUDFLARE_TUNNEL_CREDENTIALS_FILE` | 无 | 可选，直接指向 credentials JSON；未设置时从 token 自动解析 |
-| `CLOUDFLARE_TUNNEL_REMOTE_CONFIG` | `false` | 设为 `true` 时仅执行 `tunnel run --token`，路由完全由 Cloudflare 控制台 Remote config 管理 |
-| `TUNNEL_NODE_HOSTNAME` | 无 | 节点固定域名，如 `node.example.com` |
-| `TUNNEL_BT_HOSTNAME` | 无 | 宝塔固定域名，如 `bt.example.com` |
-| `TUNNEL_PORT_DOMAIN` | 无 | 端口绑定域名后缀；绑定 8080 时默认生成 `p8080.example.com` |
-| `TUNNEL_PORT_HOST_PREFIX` | `p` | 端口子域名前缀，最终为 `{prefix}{port}.{TUNNEL_PORT_DOMAIN}` |
-| `TUNNEL_PORT_HOST_TEMPLATE` | 无 | 自定义模板，如 `{port}.apps.example.com` |
-| `XRAY_PORT` | `10086` | Xray 固定监听端口（不再随机） |
-| `BT_PORT` | `8888` | 宝塔面板端口回退值；优先读取 `/www/server/panel/data/port.pl` |
+| Tunnel Token | 无 | Cloudflare 控制台创建隧道后给出的 `cloudflared tunnel run --token ...` 中的 token |
+| API Token | 无 | 用于保存配置时通过 Cloudflare API 推送 ingress 路由 |
+| 节点域名 | 无 | 如 `node.example.com` |
+| 宝塔域名 | 无 | 如 `bt.example.com` |
+| 端口域名后缀 | 无 | 端口绑定域名后缀；绑定 8080 时默认生成 `p8080.example.com` |
+| 端口子域名前缀 | `p` | 最终为 `{prefix}{port}.{TUNNEL_PORT_DOMAIN}` |
+| Xray 端口 | `10086` | Xray 固定监听端口（不再随机） |
+| 宝塔端口 | `8888` | 宝塔面板端口回退值；优先读取 `/www/server/panel/data/port.pl` |
 
-未设置 `CLOUDFLARE_TUNNEL_TOKEN` 时，仍回退到 Quick Tunnel（临时 `trycloudflare.com`）模式。
+未保存固定隧道配置时，仍回退到 Quick Tunnel（临时 `trycloudflare.com`）模式。
 
 ### Node 版本
 
@@ -216,19 +214,11 @@ npm start
    - `node.example.com` → `<tunnel-id>.cfargotunnel.com`
    - `bt.example.com` → `<tunnel-id>.cfargotunnel.com`
    - 端口绑定建议加通配符：`*.example.com` → `<tunnel-id>.cfargotunnel.com`（配合默认 `p8080.example.com` 规则）
-6. 在 Azure / 本地设置环境变量（见上表），至少：
+6. 部署后打开后台面板 → 固定隧道，填写 Tunnel Token、API Token、节点域名、宝塔域名和端口域名后缀
+7. 点击「保存配置」写入 `named-tunnel-settings.json`，程序会尝试通过 Cloudflare API 推送路由
+8. 点击「启动固定隧道」后才会启动名为 `btblog-named-tunnel` 的进程
 
-```bash
-CLOUDFLARE_TUNNEL_TOKEN='eyJhIjoi...'
-TUNNEL_NODE_HOSTNAME='node.example.com'
-TUNNEL_BT_HOSTNAME='bt.example.com'
-TUNNEL_PORT_DOMAIN='example.com'
-XRAY_PORT='10086'
-```
-
-7. 部署后程序会自动生成 `cloudflared-config.yml` 并启动名为 `btblog-named-tunnel` 的进程
-
-若你更希望在 Cloudflare 控制台统一管理路由，可设 `CLOUDFLARE_TUNNEL_REMOTE_CONFIG=true`，并在隧道 **Public Hostname** 里手动填写与上面相同的端口映射。
+若不填写 API Token，保存配置只写本地文件，不会通过 Cloudflare API 创建或更新路由。
 
 ---
 

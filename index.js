@@ -28,6 +28,7 @@ const cloudflareTunnelManager = new CloudflareTunnelManager({
   env: process.env,
   cloudflaredPath: path.join(runtimeDir, "cloudflared-linux"),
   stateFile: path.join(runtimeDir, "port-tunnels.json"),
+  settingsFile: path.join(runtimeDir, "named-tunnel-settings.json"),
 });
 
 const serviceManager = new ServiceManager({
@@ -186,7 +187,10 @@ app.get('/readyz', async (req, res) => {
 
 app.get("/tunnel-status", auth.requireAuth, async (req, res) => {
   try {
-    res.json(await cloudflareTunnelManager.status());
+    res.json({
+      ...(await cloudflareTunnelManager.status()),
+      config: cloudflareTunnelManager.configStatus(),
+    });
   } catch (error) {
     res.status(500).json({
       error: "获取固定隧道状态失败",
@@ -195,10 +199,34 @@ app.get("/tunnel-status", auth.requireAuth, async (req, res) => {
   }
 });
 
+app.get("/tunnel-config", auth.requireAuth, async (req, res) => {
+  try {
+    res.json(cloudflareTunnelManager.configStatus());
+  } catch (error) {
+    res.status(500).json({
+      error: "获取固定隧道配置失败",
+      message: error.message,
+    });
+  }
+});
+
+app.post("/tunnel-config", auth.requireAuth, async (req, res) => {
+  try {
+    const result = await cloudflareTunnelManager.saveConfig(req.body || {});
+    res.json({ ok: true, message: "固定隧道配置已保存", ...result });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      message: error.message,
+      logTail: cloudflareTunnelManager.readLogTail(),
+    });
+  }
+});
+
 app.post("/tunnel-sync", auth.requireAuth, async (req, res) => {
   try {
     const result = await cloudflareTunnelManager.sync("manual");
-    res.json({ ok: true, message: "固定隧道已重启", ...result });
+    res.json({ ok: true, message: "固定隧道已启动", ...result });
   } catch (error) {
     res.status(500).json({
       ok: false,
@@ -505,21 +533,7 @@ function keep_baota_alive() {
 setInterval(keep_baota_alive, 3 * 60 * 1000);
 keep_baota_alive();
 
-function keep_named_tunnel_alive() {
-  cloudflareTunnelManager.ensureRunning("keepalive").catch((error) => {
-    console.error("固定隧道保活失败:", error.message);
-  });
-}
-
-if (cloudflareTunnelManager.isEnabled()) {
-  cloudflareTunnelManager.sync("startup").catch((error) => {
-    console.error("固定隧道启动失败:", error.message);
-    cloudflareTunnelManager.appendLog(`startup failed: ${error.message}`);
-  });
-  setInterval(keep_named_tunnel_alive, 60 * 1000);
-} else {
-  console.warn("CLOUDFLARE_TUNNEL_TOKEN 未设置或无效，固定隧道未启用");
-}
+console.log("固定隧道不会自动启动，请在管理面板保存配置后手动启动");
 
 // 启动entrypoint.sh脚本
 exec(`bash ${shellQuote(path.join(__dirname, 'entrypoint.sh'))}`, {

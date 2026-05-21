@@ -411,7 +411,7 @@
               <button id="restart-btn" class="btn btn-control btn-restart">重启服务</button>
               <button id="stop-btn" class="btn btn-control btn-stop">停止服务</button>
               <button id="start-baota-btn" class="btn btn-control btn-refresh">启动宝塔</button>
-              <button id="restart-tunnel-btn" class="btn btn-control btn-refresh">重启固定隧道</button>
+              <button id="restart-tunnel-btn" class="btn btn-control btn-refresh">启动固定隧道</button>
             </div>
             <p class="panel-note" style="margin: 12px 0 0;">固定隧道启用后，节点与宝塔共用同一条 Cloudflare Tunnel。</p>
           </div>
@@ -429,6 +429,9 @@
             </li>
             <li class="nav-item" role="presentation">
               <button class="nav-link" id="baota-tab" data-bs-toggle="tab" data-bs-target="#baota-content" type="button" role="tab" aria-controls="baota-content" aria-selected="false">宝塔面板</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="named-tunnel-tab" data-bs-toggle="tab" data-bs-target="#named-tunnel-content" type="button" role="tab" aria-controls="named-tunnel-content" aria-selected="false">固定隧道</button>
             </li>
             <li class="nav-item" role="presentation">
               <button class="nav-link" id="port-tunnel-tab" data-bs-toggle="tab" data-bs-target="#port-tunnel-content" type="button" role="tab" aria-controls="port-tunnel-content" aria-selected="false">端口绑定</button>
@@ -478,6 +481,26 @@
                   <pre id="baota-tunnel-log" class="data-panel empty">加载中...</pre>
                 </div>
               </div>
+            </div>
+
+            <div class="tab-pane fade" id="named-tunnel-content" role="tabpanel" aria-labelledby="named-tunnel-tab" tabindex="0">
+              <div class="panel-toolbar">
+                <span class="panel-note">保存配置会写入运行目录并尝试通过 Cloudflare API 推送路由；启动需要手动点击「启动固定隧道」。</span>
+                <button id="refresh-tunnel-config" class="btn btn-refresh">刷新配置</button>
+              </div>
+              <div class="port-bind-form">
+                <input id="tunnel-token" type="password" placeholder="Cloudflare Tunnel Token（留空保留原值）">
+                <input id="tunnel-api-token" type="password" placeholder="Cloudflare API Token（留空保留原值）">
+                <input id="tunnel-node-hostname" type="text" placeholder="节点域名，如 node.example.com">
+                <input id="tunnel-bt-hostname" type="text" placeholder="宝塔域名，如 bt.example.com">
+                <input id="tunnel-port-domain" type="text" placeholder="端口绑定域名后缀，如 example.com">
+                <input id="tunnel-port-prefix" type="text" placeholder="端口子域名前缀，默认 p">
+                <input id="tunnel-xray-port" type="number" min="1" max="65535" placeholder="Xray 端口，默认 10086">
+                <input id="tunnel-bt-port" type="number" min="1" max="65535" placeholder="宝塔端口，默认 8888">
+                <button id="save-tunnel-config-btn" class="btn btn-control btn-start">保存配置</button>
+                <button id="start-tunnel-btn" class="btn btn-control btn-refresh">启动固定隧道</button>
+              </div>
+              <pre id="named-tunnel-config-info" class="data-panel empty">加载中...</pre>
             </div>
 
             <div class="tab-pane fade" id="port-tunnel-content" role="tabpanel" aria-labelledby="port-tunnel-tab" tabindex="0">
@@ -561,6 +584,9 @@
       const startBaotaBtn = document.getElementById("start-baota-btn");
       const refreshPortTunnelsBtn = document.getElementById("refresh-port-tunnels");
       const restartTunnelBtn = document.getElementById("restart-tunnel-btn");
+      const refreshTunnelConfigBtn = document.getElementById("refresh-tunnel-config");
+      const saveTunnelConfigBtn = document.getElementById("save-tunnel-config-btn");
+      const startTunnelBtn = document.getElementById("start-tunnel-btn");
       let namedTunnelEnabled = false;
 
       function applyNamedTunnelUi(enabled) {
@@ -589,6 +615,14 @@
       const portInput = document.getElementById("port-input");
       const portProtocol = document.getElementById("port-protocol");
       const portTunnelList = document.getElementById("port-tunnel-list");
+      const tunnelTokenInput = document.getElementById("tunnel-token");
+      const tunnelApiTokenInput = document.getElementById("tunnel-api-token");
+      const tunnelNodeHostnameInput = document.getElementById("tunnel-node-hostname");
+      const tunnelBtHostnameInput = document.getElementById("tunnel-bt-hostname");
+      const tunnelPortDomainInput = document.getElementById("tunnel-port-domain");
+      const tunnelPortPrefixInput = document.getElementById("tunnel-port-prefix");
+      const tunnelXrayPortInput = document.getElementById("tunnel-xray-port");
+      const tunnelBtPortInput = document.getElementById("tunnel-bt-port");
       const operationError = document.getElementById("operation-error");
       const operationResult = document.getElementById("operation-result");
       const lastRefresh = document.getElementById("last-refresh");
@@ -815,6 +849,69 @@
           `;
           throw error;
         }
+      }
+
+      function renderTunnelConfig(data) {
+        const lines = [
+          `配置文件: ${data.settingsFile || "-"}`,
+          `Tunnel Token: ${data.hasTunnelToken ? "已保存" : "未保存"}`,
+          `API Token: ${data.hasApiToken ? "已保存" : "未保存"}`,
+          `节点域名: ${data.nodeHostname || "-"}`,
+          `宝塔域名: ${data.btHostname || "-"}`,
+          `端口域名后缀: ${data.portDomain || "-"}`,
+          `端口前缀: ${data.portHostPrefix || "p"}`,
+          `Xray 端口: ${data.xrayPort || 10086}`,
+          `宝塔端口: ${data.btPort || 8888}`,
+          `路由模式: ${data.remoteConfig ? "Cloudflare API / Remote config" : "本地 config"}`,
+        ];
+        if (data.routePublish) {
+          lines.push(
+            "",
+            data.routePublish.skipped
+              ? `路由推送: 跳过 - ${data.routePublish.reason || "未执行"}`
+              : "路由推送: 已通过 Cloudflare API 更新"
+          );
+        }
+        setPanelText("named-tunnel-config-info", lines.join("\n"));
+      }
+
+      async function getTunnelConfig() {
+        setPanelText("named-tunnel-config-info", "加载中...");
+        const data = await fetchJson("/tunnel-config");
+        tunnelNodeHostnameInput.value = data.nodeHostname || "";
+        tunnelBtHostnameInput.value = data.btHostname || "";
+        tunnelPortDomainInput.value = data.portDomain || "";
+        tunnelPortPrefixInput.value = data.portHostPrefix || "p";
+        tunnelXrayPortInput.value = data.xrayPort || 10086;
+        tunnelBtPortInput.value = data.btPort || 8888;
+        tunnelTokenInput.value = "";
+        tunnelApiTokenInput.value = "";
+        renderTunnelConfig(data);
+        markRefreshed();
+        return data;
+      }
+
+      async function saveTunnelConfig() {
+        const payload = {
+          CLOUDFLARE_TUNNEL_TOKEN: tunnelTokenInput.value,
+          CLOUDFLARE_API_TOKEN: tunnelApiTokenInput.value,
+          TUNNEL_NODE_HOSTNAME: tunnelNodeHostnameInput.value,
+          TUNNEL_BT_HOSTNAME: tunnelBtHostnameInput.value,
+          TUNNEL_PORT_DOMAIN: tunnelPortDomainInput.value,
+          TUNNEL_PORT_HOST_PREFIX: tunnelPortPrefixInput.value,
+          XRAY_PORT: tunnelXrayPortInput.value,
+          BT_PORT: tunnelBtPortInput.value,
+        };
+        const data = await fetchJson("/tunnel-config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        tunnelTokenInput.value = "";
+        tunnelApiTokenInput.value = "";
+        renderTunnelConfig(data);
+        markRefreshed();
+        return data;
       }
 
       async function bindPort() {
@@ -1049,13 +1146,46 @@
           setMessage(operationResult, "", "");
           withButtonState(this, "重启中...", async () => {
             const data = await fetchJson("/tunnel-sync", { method: "POST" });
-            showResult(data.ok === false ? (data.message || "固定隧道重启失败") : "固定隧道已重启，请查看固定隧道日志");
+            showResult(data.ok === false ? (data.message || "固定隧道启动失败") : "固定隧道已启动，请查看固定隧道日志");
             await Promise.all([updateServiceStatus(), getBaotaInfo(), getLogs()]);
           }).finally(() => {
-            this.textContent = "重启固定隧道";
+            this.textContent = "启动固定隧道";
           });
         });
       }
+
+      refreshTunnelConfigBtn.addEventListener("click", function() {
+        withButtonState(this, "刷新中...", getTunnelConfig).finally(() => {
+          this.textContent = "刷新配置";
+        });
+      });
+
+      saveTunnelConfigBtn.addEventListener("click", function() {
+        setMessage(operationError, "", "");
+        setMessage(operationResult, "", "");
+        withButtonState(this, "保存中...", async () => {
+          const data = await saveTunnelConfig();
+          const routeMessage = data.routePublish?.skipped
+            ? `；路由未推送：${data.routePublish.reason || "未执行"}`
+            : "；路由已推送到 Cloudflare";
+          showResult(`${data.message || "固定隧道配置已保存"}${routeMessage}`);
+          applyNamedTunnelUi(data.configured);
+        }).finally(() => {
+          this.textContent = "保存配置";
+        });
+      });
+
+      startTunnelBtn.addEventListener("click", function() {
+        setMessage(operationError, "", "");
+        setMessage(operationResult, "", "");
+        withButtonState(this, "启动中...", async () => {
+          const data = await fetchJson("/tunnel-sync", { method: "POST" });
+          showResult(data.ok === false ? (data.message || "固定隧道启动失败") : "固定隧道已启动，请查看固定隧道日志");
+          await Promise.all([updateServiceStatus(), getBaotaInfo(), getLogs()]);
+        }).finally(() => {
+          this.textContent = "启动固定隧道";
+        });
+      });
 
       refreshPortTunnelsBtn.addEventListener("click", function() {
         withButtonState(this, "刷新中...", getPortTunnels).finally(() => {
@@ -1124,11 +1254,9 @@
       getServerInfo();
       getV2RayInfo();
       getBaotaInfo();
+      getTunnelConfig();
       getPortTunnels();
       getLogs();
-      setInterval(updateServiceStatus, 10000);
-      setInterval(getBaotaInfo, 30000);
-      setInterval(() => getPortTunnels({ silent: true }), 15000);
     });
   </script>
 </body>

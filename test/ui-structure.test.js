@@ -78,6 +78,20 @@ async function testPortTunnelPanelStructure() {
   assert.match(html, /\/port-tunnels\/unbind/);
 }
 
+async function testNamedTunnelConfigPanelStructure() {
+  assert.match(html, /id="named-tunnel-content"/);
+  assert.match(html, /id="save-tunnel-config-btn"/);
+  assert.match(html, /id="start-tunnel-btn"/);
+  assert.match(html, /\/tunnel-config/);
+  assert.match(html, /function\s+saveTunnelConfig\s*\(/);
+}
+
+async function testPanelDoesNotAutoPoll() {
+  assert.doesNotMatch(html, /setInterval\(updateServiceStatus/);
+  assert.doesNotMatch(html, /setInterval\(getBaotaInfo/);
+  assert.doesNotMatch(html, /setInterval\(\(\) => getPortTunnels/);
+}
+
 module.exports = {
   testV2RayPanelStructure,
   testMainPanelsAreInsideTabContent,
@@ -88,4 +102,6 @@ module.exports = {
   testTabsHaveLocalFallbackSwitcher,
   testPanelHasLogoutAction,
   testPortTunnelPanelStructure,
+  testNamedTunnelConfigPanelStructure,
+  testPanelDoesNotAutoPoll,
 };
