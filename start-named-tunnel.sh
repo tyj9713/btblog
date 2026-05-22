@@ -25,7 +25,7 @@ timestamp_iso() {
 }
 
 log() {
-  echo "[$(timestamp_iso)] $*" | tee -a "$LOG"
+  echo "[$(timestamp_iso)] $*" >>"$LOG"
 }
 
 stop_old() {
@@ -66,6 +66,12 @@ if [ ! -x "$BIN" ]; then
   exit 1
 fi
 
+if is_running; then
+  pid="$(tr -d '\r\n' < "$PID_FILE" 2>/dev/null || true)"
+  log "named tunnel already running (pid=${pid:-unknown})"
+  exit 0
+fi
+
 stop_old
 log "starting named tunnel in $RUNTIME_DIR"
 
@@ -79,23 +85,28 @@ start_cmd() {
   log "cloudflared pid=$(cat "$PID_FILE")"
 }
 
+quoted_bin=$(printf '%q' "$BIN")
+
 if [ "${LOCAL_CONFIG,,}" = "true" ] && [ -f "$CONFIG_FILE" ]; then
-  start_cmd "$BIN" tunnel --config "$CONFIG_FILE" --no-autoupdate run
+  quoted_config=$(printf '%q' "$CONFIG_FILE")
+  start_cmd env CLOUDFLARE_TUNNEL_TOKEN="$TOKEN" TUNNEL_TOKEN="$TOKEN" \
+    bash -c "exec -a btblog-named-tunnel ${quoted_bin} tunnel --config ${quoted_config} --no-autoupdate run"
 else
   start_cmd env CLOUDFLARE_TUNNEL_TOKEN="$TOKEN" TUNNEL_TOKEN="$TOKEN" \
-    "$BIN" tunnel --no-autoupdate run --token "$TOKEN"
+    bash -c "exec -a btblog-named-tunnel ${quoted_bin} tunnel --no-autoupdate run"
 fi
 
 for _ in $(seq 1 20); do
   sleep 1
   if is_running; then
-    log "named tunnel started: $(tunnel_pgrep | head -n 1 | tr -d '\r')"
+    pid="$(tr -d '\r\n' < "$PID_FILE" 2>/dev/null || true)"
+    log "named tunnel started (pid=${pid:-unknown})"
     exit 0
   fi
 done
 
 log "named tunnel failed to start"
-log "process list: $(tunnel_pgrep | tr '\n' '; ')"
+log "process check: $(pgrep -fc 'cloudflared-linux tunnel' 2>/dev/null || echo 0) matching process(es)"
 rm -f "$PID_FILE"
 tail -n 30 "$LOG" >&2 || true
 exit 1

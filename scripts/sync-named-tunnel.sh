@@ -78,7 +78,11 @@ if [ -f "$SHELL_ENV_FILE" ]; then
   . "$SHELL_ENV_FILE"
   set +a
 fi
-bash "$start_script" >>"$TUNNEL_LOG" 2>&1 || fail "start-named-tunnel.sh 执行失败"
+if "${script_dir}/named-tunnel-running.sh" >/dev/null 2>&1; then
+  tunnel_log "named tunnel already running, skip start-named-tunnel.sh"
+else
+  bash "$start_script" >>"$TUNNEL_LOG" 2>&1 || fail "start-named-tunnel.sh 执行失败"
+fi
 
 running="false"
 if "${script_dir}/named-tunnel-running.sh" >/dev/null 2>&1; then

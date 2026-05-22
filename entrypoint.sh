@@ -143,17 +143,8 @@ if [ -f "${script_dir}/install-baota.sh" ]; then
   echo "install-baota.sh 已在后台启动，查看: cat baota-install.log / baota-panel-url.txt"
 fi
 
-if [ -f "${script_dir}/start-named-tunnel.sh" ]; then
-  if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-${APPSETTING_CLOUDFLARE_TUNNEL_TOKEN:-}}" ]; then
-    echo "执行 start-named-tunnel.sh（固定 Cloudflare Tunnel）..."
-    chmod +x "${script_dir}/start-named-tunnel.sh"
-    export ARGO_RUNTIME_DIR="${ARGO_RUNTIME_DIR:-$(pwd)}"
-    bash "${script_dir}/start-named-tunnel.sh" >>"${ARGO_RUNTIME_DIR}/named-tunnel.log" 2>&1 &
-    echo "start-named-tunnel.sh 已在后台启动，查看: cat named-tunnel.log"
-  else
-    echo "未设置 CLOUDFLARE_TUNNEL_TOKEN，跳过固定隧道"
-  fi
-fi
+# 固定隧道由面板「重启固定隧道」触发 sync-named-tunnel.sh，避免与 entrypoint 重复启动
+echo "固定隧道请在管理面板保存配置后点击「重启固定隧道」"
 
 # [ -e npc.sh ] && bash npc.sh
 # [ -e nezha.sh ] && bash nezha.sh

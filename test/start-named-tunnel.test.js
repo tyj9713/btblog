@@ -8,12 +8,14 @@ const script = fs.readFileSync(
 );
 
 async function testNamedTunnelUsesExplicitTokenFlag() {
-  assert.match(script, /tunnel --no-autoupdate run --token "\$TOKEN"/);
+  assert.match(script, /tunnel --no-autoupdate run/);
+  assert.doesNotMatch(script, /--token "\$TOKEN"/);
   assert.match(script, /named-tunnel\.pid/);
 }
 
 async function testLocalConfigUsesOfficialRunParameterOrder() {
-  assert.match(script, /tunnel --config "\$CONFIG_FILE" --no-autoupdate run/);
+  assert.match(script, /exec -a btblog-named-tunnel/);
+  assert.match(script, /tunnel --config \$\{quoted_config\} --no-autoupdate run/);
 }
 
 async function testNamedTunnelLoadsStoredEnvFile() {

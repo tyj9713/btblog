@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
+# 仅停止 Quick Tunnel（tunnel --url），不触碰固定隧道（tunnel run）
 set -euo pipefail
 
 # shellcheck disable=SC1091
 source "$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)/common.sh"
 
-pkill -9 -f 'xray/xray' >/dev/null 2>&1 || true
-
-# 固定隧道与 Quick 隧道分开：始终只杀 --url 临时隧道
 pkill -9 -f 'cloudflared-linux tunnel --url' >/dev/null 2>&1 || true
