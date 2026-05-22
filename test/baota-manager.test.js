@@ -103,10 +103,29 @@ async function testClearStaleBaotaMarker() {
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
+async function testFormatBaotaCredentialsRemovesIpAddresses() {
+  const { formatBaotaCredentials } = require("../lib/baota-manager");
+  const formatted = formatBaotaCredentials(`
+==================================================================
+\u001b[32mBT-Panel default info!\u001b[0m
+==================================================================
+外网ipv4面板地址: https://13.75.73.169:21222/7ddfcad6
+内网面板地址:     https://169.254.129.2:21222/7ddfcad6
+username: admin
+password: abc123
+`);
+
+  assert.doesNotMatch(formatted, /13\.75\.73\.169/);
+  assert.doesNotMatch(formatted, /169\.254\.129\.2/);
+  assert.match(formatted, /username: admin/);
+  assert.match(formatted, /password: abc123/);
+}
+
 module.exports = {
   testParseBaotaStatus,
   testParseBaotaStatusRequiresPanelAndTunnel,
   testInstalledRequiresPanelFiles,
   testClearStaleBaotaMarker,
+  testFormatBaotaCredentialsRemovesIpAddresses,
 };
 

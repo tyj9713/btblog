@@ -2,7 +2,6 @@ const express = require("express");
 const app = express();
 const path = require("node:path");
 const exec = require("node:child_process").exec;
-const { execSync } = require("node:child_process");
 const { promisify } = require("node:util");
 const fs = require("node:fs");
 const { ServiceManager, buildReadyResponse } = require("./lib/service-manager");
@@ -11,6 +10,7 @@ const { PortTunnelManager } = require("./lib/port-tunnel-manager");
 const { CloudflareTunnelManager } = require("./lib/cloudflare-tunnel-manager");
 const { resolveRuntimeDir } = require("./lib/runtime");
 const { createAuth } = require("./lib/auth");
+const { runScript } = require("./lib/script-runner");
 
 const execAsync = promisify(exec);
 const runtimeDir = resolveRuntimeDir(process.env, __dirname);
@@ -69,24 +69,6 @@ const portTunnelManager = new PortTunnelManager({
   maxTunnels: Number(process.env.MAX_PORT_TUNNELS || 8),
   tunnelManager: cloudflareTunnelManager,
 });
-
-function shellQuote(value) {
-  return `'${String(value).replace(/'/g, "'\\''")}'`;
-}
-
-function runCommand(command) {
-  try {
-    return execSync(command, { timeout: 10000, maxBuffer: 1024 * 1024 }).toString();
-  } catch (error) {
-    const output = error.stdout ? error.stdout.toString() : "";
-    const stderr = error.stderr ? error.stderr.toString() : "";
-    return [
-      output.trim(),
-      stderr.trim(),
-      `命令执行失败: ${error.message}`,
-    ].filter(Boolean).join("\n");
-  }
-}
 
 function readLogFile(fileName) {
   const filePath = runtimePath(fileName);
@@ -189,7 +171,7 @@ app.get("/tunnel-status", auth.requireAuth, async (req, res) => {
   try {
     res.json({
       ...(await cloudflareTunnelManager.status()),
-      config: cloudflareTunnelManager.configStatus(),
+      config: await cloudflareTunnelManager.configStatus(),
     });
   } catch (error) {
     res.status(500).json({
@@ -201,7 +183,7 @@ app.get("/tunnel-status", auth.requireAuth, async (req, res) => {
 
 app.get("/tunnel-config", auth.requireAuth, async (req, res) => {
   try {
-    res.json(cloudflareTunnelManager.configStatus());
+    res.json(await cloudflareTunnelManager.configStatus());
   } catch (error) {
     res.status(500).json({
       error: "获取固定隧道配置失败",
@@ -247,18 +229,32 @@ app.get('/suoha-status', auth.requireAuth, async (req, res) => {
 });
 
 // 获取服务器信息
-app.get('/server-info', auth.requireAuth, (req, res) => {
-  exec("cat /etc/os-release 2>&1; uname -a 2>&1; curl -s --max-time 8 https://speed.cloudflare.com/meta 2>&1", (err, stdout, stderr) => {
+app.get('/server-info', auth.requireAuth, async (req, res) => {
+  try {
+    const { stdout, stderr } = await runScript(execAsync, "server-info.sh", {
+      cwd: runtimeDir,
+      timeout: 15_000,
+      maxBuffer: 1024 * 1024,
+    });
     const parts = [];
     if (stdout) parts.push(stdout.trim());
     if (stderr) parts.push(stderr.trim());
-    if (err) parts.push(`命令执行失败: ${err.message}`);
 
     res.json({
-      ok: !err,
+      ok: true,
       info: parts.filter(Boolean).join("\n\n") || "暂无服务器信息",
     });
-  });
+  } catch (error) {
+    const parts = [
+      error.stdout ? String(error.stdout).trim() : "",
+      error.stderr ? String(error.stderr).trim() : "",
+      `命令执行失败: ${error.message}`,
+    ].filter(Boolean);
+    res.json({
+      ok: false,
+      info: parts.join("\n\n") || "暂无服务器信息",
+    });
+  }
 });
 
 // 订阅链接（公开，供客户端直接拉取）
@@ -281,7 +277,7 @@ app.get('/xxxooo', (req, res) => {
 app.get('/baota-info', auth.requireAuth, async (req, res) => {
   try {
     const status = await baotaManager.status();
-    const logs = baotaManager.getLogs();
+    const logs = await baotaManager.getLogs();
     const tunnelLogs = await buildTunnelLogs();
 
     if (tunnelLogs.namedTunnelEnabled) {
@@ -300,6 +296,7 @@ app.get('/baota-info', auth.requireAuth, async (req, res) => {
 
     res.json({
       ...status,
+      panelPort: logs.panelPort,
       logs,
     });
   } catch (error) {
@@ -445,16 +442,25 @@ app.post('/stop-suoha', auth.requireAuth, async (req, res) => {
 // 获取日志
 app.get('/logs', auth.requireAuth, async (req, res) => {
   try {
-    const sysInfo = runCommand("uname -a 2>&1; df -h 2>&1; ls -la 2>&1");
-    const processInfo = runCommand("ps -ef 2>&1 | grep -E 'xray|cloudflared|suoha|btblog-named-tunnel' || true");
-    const fileCheck = runCommand(`ls -la ${shellQuote(runtimeDir)} ${shellQuote(runtimePath('suoha.sh'))} ${shellQuote(runtimePath('v2ray.txt'))} ${shellQuote(runtimePath('xray'))} ${shellQuote(runtimePath('cloudflared-linux'))} ${shellQuote(runtimePath('named-tunnel.log'))} 2>&1 || true`);
+    const { stdout: diagnosticOutput } = await runScript(execAsync, "diagnostic-logs.sh", {
+      cwd: runtimeDir,
+      timeout: 15_000,
+      maxBuffer: 1024 * 1024,
+    });
+    const sections = String(diagnosticOutput || "").split("===== ").slice(1);
+    const sectionMap = {};
+    for (const section of sections) {
+      const [title, ...body] = section.split("=====");
+      sectionMap[title.trim()] = body.join("=====").trim();
+    }
     const tunnelLogs = await buildTunnelLogs();
 
     res.json({
       ok: true,
-      systemInfo: sysInfo,
-      processes: processInfo,
-      fileStatus: fileCheck,
+      systemInfo: [sectionMap.system, sectionMap.processes].filter(Boolean).join("\n\n"),
+      processes: sectionMap.processes || "",
+      fileStatus: sectionMap["runtime files"] || "",
+      diagnosticOutput: String(diagnosticOutput || "").trim(),
       runtimeDir,
       namedTunnelEnabled: tunnelLogs.namedTunnelEnabled,
       startLog: readLogFile('suoha-start.log'),
@@ -475,35 +481,33 @@ app.get('/logs', auth.requireAuth, async (req, res) => {
   }
 });
 
+async function runNezhaAction(action, res, successMessage) {
+  try {
+    await runScript(execAsync, "nezha-control.sh", {
+      cwd: runtimeDir,
+      timeout: 30_000,
+      env: { ACTION: action },
+    });
+    res.send({ message: successMessage });
+  } catch (error) {
+    res.status(500).send({
+      message: `${successMessage.replace("成功", "失败")}`,
+      error: error.message,
+    });
+  }
+}
+
 // 哪吒相关控制（保留原有代码，但默认不启用）
 app.post('/start-nezha', auth.requireAuth, (req, res) => {
-  exec("bash nezha.sh", (err, stdout, stderr) => {
-    if (err) {
-      res.status(500).send({ message: "启动哪吒客户端失败", error: err });
-    } else {
-      res.send({ message: "哪吒客户端启动成功" });
-    }
-  });
+  runNezhaAction("start", res, "哪吒客户端启动成功");
 });
 
 app.post('/restart-nezha', auth.requireAuth, (req, res) => {
-  exec("pkill -9 nezha-agent && bash nezha.sh", (err, stdout, stderr) => {
-    if (err) {
-      res.status(500).send({ message: "重启哪吒客户端失败", error: err });
-    } else {
-      res.send({ message: "哪吒客户端重启成功" });
-    }
-  });
+  runNezhaAction("restart", res, "哪吒客户端重启成功");
 });
 
 app.post('/stop-nezha', auth.requireAuth, (req, res) => {
-  exec("pkill -9 nezha-agent", (err, stdout, stderr) => {
-    if (err) {
-      res.status(500).send({ message: "停止哪吒客户端失败", error: err });
-    } else {
-      res.send({ message: "哪吒客户端停止成功" });
-    }
-  });
+  runNezhaAction("stop", res, "哪吒客户端停止成功");
 });
 
 // suoha服务保活
@@ -554,21 +558,21 @@ async function bootstrapNamedTunnelConfig() {
 }
 
 function startEntrypoint() {
-  exec(`bash ${shellQuote(path.join(__dirname, 'entrypoint.sh'))}`, {
+  runScript(execAsync, "entrypoint.sh", {
     cwd: runtimeDir,
+    scriptPath: path.join(__dirname, "entrypoint.sh"),
+    timeout: 120_000,
+    maxBuffer: 4 * 1024 * 1024,
     env: {
-      ...process.env,
       ARGO_RUNTIME_DIR: runtimeDir,
     },
-    timeout: 120000,
-    maxBuffer: 4 * 1024 * 1024,
-  }, function (err, stdout, stderr) {
-    if (err) {
-      console.error("Error executing entrypoint.sh: ", err);
-    } else {
-      console.log("entrypoint.sh executed successfully: ", stdout);
-    }
-  });
+  })
+    .then((result) => {
+      console.log("entrypoint.sh executed successfully: ", result.stdout || "");
+    })
+    .catch((err) => {
+      console.error("Error executing entrypoint.sh: ", err.message);
+    });
 }
 
 bootstrapNamedTunnelConfig()

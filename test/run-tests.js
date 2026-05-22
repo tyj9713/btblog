@@ -8,6 +8,7 @@ const suites = [
   require("./port-tunnel-manager.test"),
   require("./cloudflare-tunnel-config.test"),
   require("./cloudflare-tunnel-manager.test"),
+  require("./cloudflare-tunnel-scripts.test"),
   require("./start-named-tunnel.test"),
   require("./baota-manager.test"),
 ];

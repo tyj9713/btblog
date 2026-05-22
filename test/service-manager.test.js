@@ -44,7 +44,7 @@ async function testConcurrentStartCoalesces() {
   let runs = 0;
   const manager = new ServiceManager({
     execAsync: async (command) => {
-      if (/bash\s+'.*suoha\.sh'/.test(command)) {
+      if (/bash\s+'[^']*[/\\]suoha\.sh'/.test(command)) {
         runs += 1;
         await new Promise((resolve) => setTimeout(resolve, 20));
       }
@@ -66,7 +66,7 @@ async function testManualStopSuppressesKeepalive() {
   let starts = 0;
   const manager = new ServiceManager({
     execAsync: async (command) => {
-      if (/bash\s+'.*suoha\.sh'/.test(command)) {
+      if (/bash\s+'[^']*[/\\]suoha\.sh'/.test(command)) {
         starts += 1;
       }
       return { stdout: "" };
@@ -85,7 +85,7 @@ async function testManualStartClearsStoppedState() {
   let starts = 0;
   const manager = new ServiceManager({
     execAsync: async (command) => {
-      if (/bash\s+'.*suoha\.sh'/.test(command)) {
+      if (/bash\s+'[^']*[/\\]suoha\.sh'/.test(command)) {
         starts += 1;
       }
       return { stdout: "" };

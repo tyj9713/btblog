@@ -669,8 +669,9 @@
                 <input id="tunnel-xray-port" type="number" min="1" max="65535" placeholder="10086">
               </div>
               <div class="field">
-                <label for="tunnel-bt-port">宝塔端口</label>
+                <label for="tunnel-bt-port">宝塔端口（备用）</label>
                 <input id="tunnel-bt-port" type="number" min="1" max="65535" placeholder="8888">
+                <small class="panel-note">宝塔安装后实际端口由系统分配（如 21222），推送路由时会自动读取。</small>
               </div>
             </div>
             <div class="form-actions">
@@ -953,6 +954,12 @@
         } else if (logs.panelUrl && !String(logs.panelUrl).includes("不存在")) {
           lines.push(String(logs.panelUrl).trim());
         }
+        if (data.panelPort) {
+          lines.push(`本地监听端口: ${data.panelPort}`);
+        }
+        if (data.namedTunnelEnabled) {
+          lines.push("说明: 固定隧道访问请用上方外网地址，无需使用 bt default 里的 IP 地址。");
+        }
         if (data.installed === false) {
           lines.push("", data.needsReinstall
             ? "状态: 容器重启后面板已丢失，将自动重新安装。"
@@ -968,9 +975,9 @@
         } else {
           lines.push("", "状态: 面板或隧道未就绪");
         }
-        const loginBlock = logs.loginInfo || logs.defaultInfo;
+        const loginBlock = logs.credentials || logs.loginInfo || logs.defaultInfo;
         if (loginBlock && !String(loginBlock).includes("不存在")) {
-          lines.push("", "===== 登录信息 =====", String(loginBlock).trim());
+          lines.push("", "===== 账号信息 =====", String(loginBlock).trim());
         }
         return lines.filter(Boolean).join("\n") || "暂无宝塔登录信息";
       }
@@ -1086,7 +1093,8 @@
           `端口域名后缀: ${data.portDomain || "-"}`,
           `端口前缀: ${data.portHostPrefix || "p"}`,
           `Xray 端口: ${data.xrayPort || 10086}`,
-          `宝塔端口: ${data.btPort || 8888}`,
+          `宝塔端口(配置): ${data.btPort || 8888}`,
+          `宝塔端口(实际): ${data.btPortEffective || data.btPort || 8888}`,
           `路由模式: ${data.remoteConfig ? "Cloudflare API / Remote config" : "本地 config"}`,
         ];
         if (data.routePublish) {
