@@ -4,6 +4,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 script_dir="$SCRIPT_DIR"
 cd "$SCRIPT_DIR" || exit 1
 RUNTIME_DIR="${ARGO_RUNTIME_DIR:-$SCRIPT_DIR}"
+export ARGO_RUNTIME_DIR="$RUNTIME_DIR"
+
+if [ -f "${script_dir}/scripts/cleanup-runtime.sh" ]; then
+  echo "清理旧日志与过期宝塔信息..."
+  chmod +x "${script_dir}/scripts/cleanup-runtime.sh"
+  bash "${script_dir}/scripts/cleanup-runtime.sh" || true
+fi
+
 if [ -f "${RUNTIME_DIR}/named-tunnel.env" ]; then
   set -a
   # shellcheck disable=SC1091

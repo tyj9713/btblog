@@ -118,7 +118,7 @@ async function buildTunnelLogs() {
   return {
     namedTunnelEnabled: true,
     tunnel,
-    tunnelLog: cloudflareTunnelManager.buildLogSummary(tunnel),
+    tunnelLog: await cloudflareTunnelManager.buildLogSummary(tunnel),
   };
 }
 
@@ -557,7 +557,16 @@ async function bootstrapNamedTunnelConfig() {
   }
 }
 
-function startEntrypoint() {
+async function startEntrypoint() {
+  try {
+    await runScript(execAsync, "cleanup-runtime.sh", {
+      cwd: runtimeDir,
+      timeout: 30_000,
+    });
+  } catch (error) {
+    console.warn(`启动前清理旧日志失败: ${error.message}`);
+  }
+
   runScript(execAsync, "entrypoint.sh", {
     cwd: runtimeDir,
     scriptPath: path.join(__dirname, "entrypoint.sh"),

@@ -16,11 +16,11 @@ SYNC_RESULT_FILE="${RUNTIME_DIR}/named-tunnel-sync-result.json"
 ROUTE_PUBLISH_FILE="${RUNTIME_DIR}/named-tunnel-route-publish.json"
 
 tunnel_log() {
-  echo "[$(date -Iseconds)] $*" | tee -a "$TUNNEL_LOG"
+  echo "[$(timestamp_iso)] $*" | tee -a "$TUNNEL_LOG"
 }
 
 tunnel_python() {
-  python3 - "$RUNTIME_DIR" "$@" <<'PY'
+  "$PYTHON_BIN" - "$RUNTIME_DIR" "$@" <<'PY'
 import base64
 import json
 import os
