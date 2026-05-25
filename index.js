@@ -14,11 +14,18 @@ const { createAuth } = require("./lib/auth");
 const { runScript } = require("./lib/script-runner");
 const { createTerminalServer, TERMINAL_WS_PATH, isPtyAvailable } = require("./lib/terminal-server");
 const { buildSubscriptionContent } = require("./lib/node-converter");
+const {
+  SETTINGS_FILE: BAOTA_SETTINGS_FILE,
+  loadBaotaSettings,
+  saveBaotaSettings,
+  buildBaotaSettingsResponse,
+} = require("./lib/baota-settings");
 
 const execAsync = promisify(exec);
 const runtimeDir = resolveRuntimeDir(process.env, __dirname);
 const auth = createAuth();
 fs.mkdirSync(runtimeDir, { recursive: true });
+loadBaotaSettings(runtimeDir, process.env);
 
 function runtimePath(fileName) {
   return path.join(runtimeDir, fileName);
@@ -303,6 +310,41 @@ app.get('/baota-info', auth.requireAuth, async (req, res) => {
   } catch (error) {
     res.status(500).json({
       error: "获取宝塔信息失败",
+      message: error.message,
+    });
+  }
+});
+
+app.get('/baota-settings', auth.requireAuth, async (_req, res) => {
+  try {
+    const settings = loadBaotaSettings(runtimeDir, process.env);
+    res.json({
+      ok: true,
+      ...buildBaotaSettingsResponse(settings, runtimePath(BAOTA_SETTINGS_FILE)),
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      message: error.message,
+    });
+  }
+});
+
+app.post('/baota-settings', auth.requireAuth, async (req, res) => {
+  try {
+    const settings = saveBaotaSettings(runtimeDir, req.body || {});
+    baotaManager.restart("settings").catch((error) => {
+      console.error("后台应用宝塔固定配置失败:", error.message);
+    });
+    res.json({
+      ok: true,
+      message: "宝塔固定配置已保存，正在后台应用",
+      applying: true,
+      ...buildBaotaSettingsResponse(settings, runtimePath(BAOTA_SETTINGS_FILE)),
+    });
+  } catch (error) {
+    res.status(400).json({
+      ok: false,
       message: error.message,
     });
   }

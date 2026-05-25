@@ -758,6 +758,33 @@
               </div>
             </div>
             <pre id="baota-login-info" class="data-panel empty" style="min-height: 140px; max-height: 220px;">加载中...</pre>
+            <div class="view-head" style="margin-top: 14px;">
+              <div>
+                <h3 class="view-title">固定宝塔配置</h3>
+                <p class="panel-note">保存后会写入运行目录，并在安装、重装或重启宝塔时复用。</p>
+              </div>
+            </div>
+            <div class="form-grid">
+              <div class="field">
+                <label for="baota-settings-port">面板端口</label>
+                <input id="baota-settings-port" type="number" min="1" max="65535" placeholder="8888">
+              </div>
+              <div class="field">
+                <label for="baota-settings-safe-path">安全入口</label>
+                <input id="baota-settings-safe-path" type="text" placeholder="/btblog-panel">
+              </div>
+              <div class="field">
+                <label for="baota-settings-username">用户名</label>
+                <input id="baota-settings-username" type="text" autocomplete="username" placeholder="btadmin">
+              </div>
+              <div class="field">
+                <label for="baota-settings-password">密码</label>
+                <input id="baota-settings-password" type="password" autocomplete="new-password" placeholder="留空则保持原密码">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button id="save-baota-settings-btn" class="btn btn-control btn-start" type="button">保存并应用宝塔配置</button>
+            </div>
             <ul class="nav nav-pills" id="baotaSubTabs" role="tablist">
               <li class="nav-item" role="presentation">
                 <button class="nav-link active" id="baota-install-tab" data-bs-toggle="pill" data-bs-target="#baota-install-logs" type="button" role="tab" aria-controls="baota-install-logs" aria-selected="true">安装日志</button>
@@ -908,6 +935,11 @@
       const tunnelPortPrefixInput = document.getElementById("tunnel-port-prefix");
       const tunnelXrayPortInput = document.getElementById("tunnel-xray-port");
       const tunnelBtPortInput = document.getElementById("tunnel-bt-port");
+      const baotaSettingsPortInput = document.getElementById("baota-settings-port");
+      const baotaSettingsSafePathInput = document.getElementById("baota-settings-safe-path");
+      const baotaSettingsUsernameInput = document.getElementById("baota-settings-username");
+      const baotaSettingsPasswordInput = document.getElementById("baota-settings-password");
+      const saveBaotaSettingsBtn = document.getElementById("save-baota-settings-btn");
       const operationError = document.getElementById("operation-error");
       const operationResult = document.getElementById("operation-result");
       const lastRefresh = document.getElementById("last-refresh");
@@ -1355,11 +1387,43 @@
         return data;
       }
 
+      async function getBaotaSettings() {
+        const data = await fetchJson("/baota-settings");
+        if (baotaSettingsPortInput) baotaSettingsPortInput.value = data.port || 8888;
+        if (baotaSettingsSafePathInput) baotaSettingsSafePathInput.value = data.safePath || "";
+        if (baotaSettingsUsernameInput) baotaSettingsUsernameInput.value = data.username || "";
+        if (baotaSettingsPasswordInput) {
+          baotaSettingsPasswordInput.value = "";
+          baotaSettingsPasswordInput.placeholder = data.hasPassword ? "留空则保持原密码" : "请输入密码";
+        }
+        return data;
+      }
+
+      async function saveBaotaSettings() {
+        const payload = {
+          port: baotaSettingsPortInput?.value,
+          safePath: baotaSettingsSafePathInput?.value,
+          username: baotaSettingsUsernameInput?.value,
+          password: baotaSettingsPasswordInput?.value,
+        };
+        const data = await fetchJson("/baota-settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (baotaSettingsPasswordInput) {
+          baotaSettingsPasswordInput.value = "";
+        }
+        await getBaotaSettings();
+        return data;
+      }
+
       async function getBaotaInfo() {
         setPanelText("baota-login-info", "加载中...");
         setPanelText("baota-install-log", "加载中...");
         setPanelText("baota-tunnel-log", "加载中...");
         try {
+          await getBaotaSettings();
           const data = await updateBaotaStatus();
           const logs = data.logs || {};
           setPanelText("baota-login-info", formatBaotaLoginInfo(data));
@@ -1724,6 +1788,17 @@
 
       refreshBaotaBtn.addEventListener("click", function() {
         withButtonState(this, "刷新中...", getBaotaInfo);
+      });
+
+      saveBaotaSettingsBtn?.addEventListener("click", function() {
+        setMessage(operationError, "", "");
+        setMessage(operationResult, "", "");
+        withButtonState(this, "保存中...", async () => {
+          const data = await saveBaotaSettings();
+          showResult(data.message || "宝塔固定配置已保存");
+          await getBaotaInfo();
+          await getLogs();
+        });
       });
 
       startBaotaBtn.addEventListener("click", function() {

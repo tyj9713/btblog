@@ -50,8 +50,16 @@ async function testBaotaPanelStructure() {
   assert.match(html, /id="baota-content"/);
   assert.match(html, /id="baota-login-info"/);
   assert.match(html, /id="refresh-baota"/);
+  assert.match(html, /id="baota-settings-port"/);
+  assert.match(html, /id="baota-settings-safe-path"/);
+  assert.match(html, /id="baota-settings-username"/);
+  assert.match(html, /id="baota-settings-password"/);
+  assert.match(html, /id="save-baota-settings-btn"/);
   assert.match(html, /function\s+getBaotaInfo\s*\(/);
+  assert.match(html, /function\s+getBaotaSettings\s*\(/);
+  assert.match(html, /function\s+saveBaotaSettings\s*\(/);
   assert.match(html, /\/baota-info/);
+  assert.match(html, /\/baota-settings/);
   assert.match(html, /\/start-baota/);
   assert.match(html, /\/stop-baota/);
   assert.match(html, /\/restart-baota/);

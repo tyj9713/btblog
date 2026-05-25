@@ -12,7 +12,9 @@ const suites = [
   require("./cloudflare-tunnel-scripts.test"),
   require("./cleanup-runtime.test"),
   require("./start-named-tunnel.test"),
+  require("./baota-install-script.test"),
   require("./baota-manager.test"),
+  require("./baota-settings.test"),
   require("./terminal-server.test"),
 ];
 

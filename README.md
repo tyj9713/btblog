@@ -67,8 +67,14 @@ npm start
 | 变量 | 默认 | 说明 |
 |------|------|------|
 | `BT_INSTALL_URL` | `https://bt.cxinyun.com/install/install_panel.sh` | 宝塔官方安装脚本下载地址 |
+| `BT_PORT` | `8888` | 首次生成 `baota-settings.json` 时使用的面板端口 |
+| `BT_SAFE_PATH` | 自动生成 | 首次生成 `baota-settings.json` 时使用的安全入口，如 `/btblog-ab12cd34` |
+| `BT_USERNAME` | `btadmin` | 首次生成 `baota-settings.json` 时使用的宝塔用户名 |
+| `BT_PASSWORD` | 自动生成 | 首次生成 `baota-settings.json` 时使用的宝塔密码 |
 
 > **不做持久化：** 宝塔装在容器系统盘 `/www`，重启后丢失。检测到面板不存在时会清除 `.baota-installed` 并**重新安装**（约 10–30 分钟）。保活每 3 分钟检查，或面板内点「启动宝塔」。
+>
+> **固定配置：** 管理面板「宝塔」页可编辑端口、安全入口、用户名和密码，保存到 `baota-settings.json`。后续安装、重装、重启都会读取该文件并重新应用，避免每次安装后入口和账号变化。
 
 ### 端口临时隧道
 
@@ -144,6 +150,8 @@ npm start
 | GET | `/server-info` | 系统与出口信息 |
 | GET | `/logs` | 系统/进程/各日志文件 |
 | GET | `/baota-info` | 宝塔状态 + 登录信息 + 日志 |
+| GET | `/baota-settings` | 读取固定宝塔配置（不返回密码明文） |
+| POST | `/baota-settings` | 保存固定宝塔配置并后台应用 |
 | POST | `/start-baota` | 后台执行 install-baota.sh |
 | GET | `/port-tunnels` | 已绑定端口隧道列表 |
 | POST | `/port-tunnels/bind` | `{ "port": 8080, "protocol": "http" }` |
@@ -168,6 +176,7 @@ npm start
 | `baota-argo.log` | 宝塔管理口隧道日志 |
 | `baota-panel-url.txt` | 宝塔外网 + 本地地址、默认账号 |
 | `baota-default.txt` | `bt default` 或面板路径信息 |
+| `baota-settings.json` | 固定宝塔端口、安全入口、用户名和密码 |
 | `.baota-installed` | 安装成功标记（**仅当次容器生命周期有效**） |
 | `port-tunnels.json` | 端口绑定状态 |
 | `port-tunnel-{端口}.log` | 各端口隧道日志 |

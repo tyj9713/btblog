@@ -18,8 +18,13 @@ TUNNEL_LOG="${RUNTIME_DIR}/baota-argo.log"
 URL_FILE="${RUNTIME_DIR}/baota-panel-url.txt"
 DEFAULT_FILE="${RUNTIME_DIR}/baota-default.txt"
 MARKER_FILE="${RUNTIME_DIR}/.baota-installed"
+BAOTA_SETTINGS_FILE="${RUNTIME_DIR}/baota-settings.json"
 INSTALL_SCRIPT_URL="${BT_INSTALL_URL:-https://bt.cxinyun.com/install/install_panel.sh}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+BT_FIXED_PORT="${BT_PORT:-8888}"
+BT_FIXED_SAFE_PATH="${BT_SAFE_PATH:-}"
+BT_FIXED_USERNAME="${BT_USERNAME:-btadmin}"
+BT_FIXED_PASSWORD="${BT_PASSWORD:-}"
 
 log() {
   echo "[$(date -Iseconds)] $*" | tee -a "$INSTALL_LOG"
@@ -48,6 +53,66 @@ ensure_python_for_bt() {
   if [ -f "$helper" ]; then
     bash "$helper" >>"$INSTALL_LOG" 2>&1 || log "python 环境准备失败，bt 命令可能不可用"
   fi
+}
+
+load_baota_settings() {
+  ensure_python_for_bt
+  local py="python3"
+  command -v python3 >/dev/null 2>&1 || py="python"
+  eval "$("$py" - "$BAOTA_SETTINGS_FILE" <<'PY'
+import json, os, secrets, shlex, string, sys
+
+path = sys.argv[1]
+alphabet = string.ascii_letters + string.digits + "_-"
+
+def token(length):
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+def normalize_port(value):
+    try:
+        port = int(str(value).strip())
+    except Exception:
+        port = 8888
+    return port if 1 <= port <= 65535 else 8888
+
+def normalize_path(value):
+    raw = str(value or "").strip() or f"/btblog-{token(8).lower()}"
+    raw = raw if raw.startswith("/") else f"/{raw}"
+    safe = "".join(ch for ch in raw if ch.isalnum() or ch in "/_-")
+    return safe if len(safe) >= 4 and safe != "/" else f"/btblog-{token(8).lower()}"
+
+def normalize_username(value):
+    raw = str(value or "btadmin").strip()
+    safe = "".join(ch for ch in raw if ch.isalnum() or ch in "_@.-")
+    return safe[:32] if len(safe) >= 3 else "btadmin"
+
+def normalize_password(value):
+    raw = str(value or "").strip()
+    return raw if 8 <= len(raw) <= 64 else token(18)
+
+try:
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+except Exception:
+    data = {}
+
+settings = {
+    "port": normalize_port(data.get("port") or os.environ.get("BT_PORT")),
+    "safePath": normalize_path(data.get("safePath") or os.environ.get("BT_SAFE_PATH")),
+    "username": normalize_username(data.get("username") or os.environ.get("BT_USERNAME")),
+    "password": normalize_password(data.get("password") or os.environ.get("BT_PASSWORD")),
+}
+os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+with open(path, "w", encoding="utf-8") as fh:
+    json.dump(settings, fh, ensure_ascii=False, indent=2)
+    fh.write("\n")
+
+print(f"BT_FIXED_PORT={shlex.quote(str(settings['port']))}")
+print(f"BT_FIXED_SAFE_PATH={shlex.quote(settings['safePath'])}")
+print(f"BT_FIXED_USERNAME={shlex.quote(settings['username'])}")
+print(f"BT_FIXED_PASSWORD={shlex.quote(settings['password'])}")
+PY
+)"
 }
 
 reset_baota_display() {
@@ -122,7 +187,11 @@ read_panel_port() {
     tr -d '[:space:]' </www/server/panel/data/port.pl
     return
   fi
-  echo "8888"
+  read_configured_panel_port
+}
+
+read_configured_panel_port() {
+  echo "${BT_FIXED_PORT:-8888}"
 }
 
 read_panel_path() {
@@ -138,6 +207,46 @@ read_panel_path() {
     fi
   fi
   echo ""
+}
+
+apply_baota_settings() {
+  if ! panel_files_exist; then
+    return 0
+  fi
+  load_baota_settings
+  log "应用固定宝塔配置: port=${BT_FIXED_PORT}, path=${BT_FIXED_SAFE_PATH}, username=${BT_FIXED_USERNAME}"
+
+  mkdir -p /www/server/panel/data
+  printf '%s\n' "$BT_FIXED_PORT" >/www/server/panel/data/port.pl
+  printf '%s\n' "$BT_FIXED_SAFE_PATH" >/www/server/panel/data/admin_path.pl
+
+  if [ -x /usr/bin/bt ]; then
+    /usr/bin/bt 6 "$BT_FIXED_USERNAME" >>"$INSTALL_LOG" 2>&1 || true
+    /usr/bin/bt 5 "$BT_FIXED_PASSWORD" >>"$INSTALL_LOG" 2>&1 || true
+    printf '%s\n' "$BT_FIXED_USERNAME" | /usr/bin/bt 6 >>"$INSTALL_LOG" 2>&1 || true
+    printf '%s\n' "$BT_FIXED_PASSWORD" | /usr/bin/bt 5 >>"$INSTALL_LOG" 2>&1 || true
+  elif command -v bt >/dev/null 2>&1; then
+    bt 6 "$BT_FIXED_USERNAME" >>"$INSTALL_LOG" 2>&1 || true
+    bt 5 "$BT_FIXED_PASSWORD" >>"$INSTALL_LOG" 2>&1 || true
+    printf '%s\n' "$BT_FIXED_USERNAME" | bt 6 >>"$INSTALL_LOG" 2>&1 || true
+    printf '%s\n' "$BT_FIXED_PASSWORD" | bt 5 >>"$INSTALL_LOG" 2>&1 || true
+  fi
+
+  if is_panel_running; then
+    log "固定配置已写入，重启宝塔面板使端口和入口生效"
+    if [ -f /etc/init.d/bt ]; then
+      /etc/init.d/bt restart >>"$INSTALL_LOG" 2>&1 || true
+    fi
+    if [ -f /www/server/panel/init.sh ]; then
+      bash /www/server/panel/init.sh restart >>"$INSTALL_LOG" 2>&1 || true
+    fi
+    if [ -x /usr/bin/bt ]; then
+      /usr/bin/bt restart >>"$INSTALL_LOG" 2>&1 || true
+    elif command -v bt >/dev/null 2>&1; then
+      bt restart >>"$INSTALL_LOG" 2>&1 || true
+    fi
+    sleep 2
+  fi
 }
 
 save_bt_default() {
@@ -157,10 +266,12 @@ save_bt_default() {
 write_bt_default_fallback() {
   if [ -f /www/server/panel/BT-Panel ]; then
     {
-      echo "# bt 命令不可用，以下为面板路径信息"
+      echo "# 固定宝塔面板信息"
       echo "panel=/www/server/panel"
       echo "port=$(read_panel_port)"
       echo "path=$(read_panel_path)"
+      echo "username=${BT_FIXED_USERNAME:-btadmin}"
+      echo "password=${BT_FIXED_PASSWORD:-}"
     } >"$DEFAULT_FILE"
   fi
 }
@@ -326,12 +437,15 @@ main() {
   mkdir -p "$RUNTIME_DIR"
   echo "" >>"$INSTALL_LOG"
   echo "[$(date -Iseconds)] install-baota.sh 启动, runtime=$RUNTIME_DIR reason=${REASON:-install}" | tee -a "$INSTALL_LOG"
+  load_baota_settings
 
   if [ "${RESTART_ONLY:-false}" = "true" ]; then
     clear_stale_install_marker
     reset_baota_display
     ensure_python_for_bt
+    apply_baota_settings
     start_baota_service || true
+    apply_baota_settings
     save_bt_default
     write_panel_url_file || log "宝塔访问地址写入失败"
     publish_named_tunnel_routes || true
@@ -342,7 +456,9 @@ main() {
   clear_stale_install_marker
 
   install_baota_panel || true
+  apply_baota_settings
   start_baota_service || true
+  apply_baota_settings
   save_bt_default
   write_panel_url_file || log "宝塔访问地址写入失败，可稍后由保活重试"
   publish_named_tunnel_routes || true
