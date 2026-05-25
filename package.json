@@ -12,7 +12,8 @@
     "test": "node test/run-tests.js"
   },
   "dependencies": {
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "ws": "^8.18.0"
   },
   "engines": {
     "node": ">=22 <23"

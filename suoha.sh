@@ -128,6 +128,24 @@ kill_quick_cloudflared() {
 	pkill -9 -f 'cloudflared-linux tunnel --url' >/dev/null 2>&1 || true
 }
 
+sync_named_tunnel_at_boot() {
+	local sync_script="${RUNTIME_DIR}/scripts/sync-named-tunnel.sh"
+	if [ ! -f "$sync_script" ]; then
+		sync_script="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)/scripts/sync-named-tunnel.sh"
+	fi
+	if [ ! -f "$sync_script" ]; then
+		echo "未找到 sync-named-tunnel.sh，跳过固定隧道启动"
+		return 1
+	fi
+	echo "Xray 已就绪，正在同步并启动固定 Cloudflare 隧道..."
+	if REASON=suoha-start ARGO_RUNTIME_DIR="$RUNTIME_DIR" bash "$sync_script" >>"${RUNTIME_DIR}/named-tunnel.log" 2>&1; then
+		echo "固定 Cloudflare 隧道已启动"
+		return 0
+	fi
+	echo "固定隧道同步失败，请查看 named-tunnel.log"
+	return 1
+}
+
 load_node_session() {
 	local session_file="${RUNTIME_DIR}/node-session.json"
 	if [ ! -f "$session_file" ] || ! command -v python3 >/dev/null 2>&1; then
@@ -182,6 +200,10 @@ watch_named_tunnel() {
 			sleep 30
 		done
 	) >/dev/null 2>&1 &
+	# 非交互 bash 会等待所有后台任务；disown 后主脚本才能退出，避免 bash suoha.sh 常驻
+	local watch_job_pid=$!
+	disown -h "$watch_job_pid" 2>/dev/null || disown "$watch_job_pid" 2>/dev/null || true
+	echo "$watch_job_pid"
 }
 
 function quicktunnel(){
@@ -302,6 +324,7 @@ fi
 
 argo=""
 if [ "$use_named_tunnel" -eq 1 ]; then
+	sync_named_tunnel_at_boot || true
 	argo="$node_host"
 	echo "使用固定节点域名: https://${argo}"
 else
@@ -423,8 +446,8 @@ if [ "$use_named_tunnel" -eq 1 ]; then
 		fi
 	fi
 	if [ "$watch_running" -eq 0 ]; then
-		watch_named_tunnel
-		echo $! >"$watch_pid_file"
+		watch_job_pid="$(watch_named_tunnel)"
+		echo "$watch_job_pid" >"$watch_pid_file"
 	fi
 fi
 

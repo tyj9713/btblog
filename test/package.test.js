@@ -11,7 +11,7 @@ async function testNodeEngineTargetsNode22() {
 }
 
 async function testDependenciesOnlyIncludeRuntimeImports() {
-  assert.deepEqual(Object.keys(packageJson.dependencies).sort(), ["express"]);
+  assert.deepEqual(Object.keys(packageJson.dependencies).sort(), ["express", "ws"]);
 }
 
 module.exports = {

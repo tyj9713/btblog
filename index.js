@@ -1,4 +1,5 @@
 const express = require("express");
+const http = require("node:http");
 const app = express();
 const path = require("node:path");
 const exec = require("node:child_process").exec;
@@ -11,6 +12,7 @@ const { CloudflareTunnelManager } = require("./lib/cloudflare-tunnel-manager");
 const { resolveRuntimeDir } = require("./lib/runtime");
 const { createAuth } = require("./lib/auth");
 const { runScript } = require("./lib/script-runner");
+const { createTerminalServer, TERMINAL_WS_PATH } = require("./lib/terminal-server");
 
 const execAsync = promisify(exec);
 const runtimeDir = resolveRuntimeDir(process.env, __dirname);
@@ -140,6 +142,15 @@ app.get("/admin/panel", auth.requirePageAuth, (_req, res) => {
 app.post("/admin/login", (req, res) => auth.handleLogin(req, res));
 app.post("/admin/logout", (req, res) => auth.handleLogout(req, res));
 app.get("/admin/session", (req, res) => auth.handleSession(req, res));
+
+app.get("/terminal-info", auth.requireAuth, (_req, res) => {
+  res.json({
+    ok: true,
+    cwd: runtimeDir,
+    wsPath: TERMINAL_WS_PATH,
+    shell: process.env.TERMINAL_SHELL || "bash",
+  });
+});
 
 // 静态资源（不含控制面板 HTML）
 app.use(express.static("public", { index: false }));
@@ -537,23 +548,16 @@ function keep_baota_alive() {
 setInterval(keep_baota_alive, 3 * 60 * 1000);
 keep_baota_alive();
 
-console.log("固定隧道不会自动启动，请在管理面板保存配置后手动启动");
+console.log("固定隧道：suoha 启动 Xray 后自动同步；宝塔装好后推送面板路由");
 
 async function bootstrapNamedTunnelConfig() {
-  cloudflareTunnelManager.syncRuntimeConfig();
-  if (!cloudflareTunnelManager.isEnabled()) {
-    return;
-  }
-
   try {
-    const result = await cloudflareTunnelManager.publishRoutes("startup");
-    if (result.skipped) {
-      console.log(`启动时跳过路由推送: ${result.reason || "未执行"}`);
-    } else {
-      console.log("启动时已同步 Cloudflare 隧道路由");
+    await cloudflareTunnelManager.syncRuntimeConfig();
+    if (cloudflareTunnelManager.isEnabled()) {
+      console.log("固定隧道配置已写入 named-tunnel.env，等待 suoha 启动 connector");
     }
   } catch (error) {
-    console.warn(`启动时推送隧道路由失败: ${error.message}`);
+    console.warn(`固定隧道配置引导失败: ${error.message}`);
   }
 }
 
@@ -592,10 +596,20 @@ bootstrapNamedTunnelConfig()
     startEntrypoint();
   });
 
-// 启动express服务器
+// 启动 express 服务器与 WebSocket 终端
 const port = process.env.PORT || 443;
-app.listen(port, () => {
+const server = http.createServer(app);
+
+createTerminalServer({
+  server,
+  getSession: (req) => auth.getSession(req),
+  cwd: runtimeDir,
+  logger: console,
+});
+
+server.listen(port, () => {
   console.log(`Server listening on port ${port}!`);
+  console.log(`Web terminal: ${TERMINAL_WS_PATH}`);
   if (!auth.isConfigured()) {
     console.warn("ADMIN_PASSWORD 未配置：管理面板与受保护 API 不可用，请在应用服务环境变量中设置。");
   }

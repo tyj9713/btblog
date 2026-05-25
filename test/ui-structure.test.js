@@ -17,7 +17,7 @@ async function testV2RayPanelStructure() {
 async function testMainPanelsAreInsideTabContent() {
   assert.match(
     html,
-    /<div class="tab-content" id="infoTabContent">[\s\S]*id="v2ray-content"[\s\S]*id="server-content"[\s\S]*id="baota-content"[\s\S]*id="port-tunnel-content"[\s\S]*id="logs-content"[\s\S]*<\/div>/
+    /<div class="tab-content" id="infoTabContent">[\s\S]*id="v2ray-content"[\s\S]*id="server-content"[\s\S]*id="baota-content"[\s\S]*id="port-tunnel-content"[\s\S]*id="logs-content"[\s\S]*id="terminal-content"[\s\S]*<\/div>/
   );
 }
 
@@ -104,6 +104,16 @@ async function testPanelDoesNotAutoPoll() {
   assert.doesNotMatch(html, /setInterval\(\(\) => getPortTunnels/);
 }
 
+async function testTerminalPanelStructure() {
+  assert.match(html, /id="terminal-content"/);
+  assert.match(html, /id="terminal-container"/);
+  assert.match(html, /id="terminal-tab"/);
+  assert.match(html, /id="terminal-reconnect-btn"/);
+  assert.match(html, /function connectTerminal\s*\(/);
+  assert.match(html, /\/terminal-info/);
+  assert.match(html, /xterm\.min\.js/);
+}
+
 module.exports = {
   testV2RayPanelStructure,
   testMainPanelsAreInsideTabContent,
@@ -117,4 +127,5 @@ module.exports = {
   testNamedTunnelConfigPanelStructure,
   testOverviewRefreshSkipsTunnelConfigOnActiveTab,
   testPanelDoesNotAutoPoll,
+  testTerminalPanelStructure,
 };

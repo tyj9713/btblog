@@ -12,6 +12,7 @@ const suites = [
   require("./cleanup-runtime.test"),
   require("./start-named-tunnel.test"),
   require("./baota-manager.test"),
+  require("./terminal-server.test"),
 ];
 
 async function main() {

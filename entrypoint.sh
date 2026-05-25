@@ -143,8 +143,12 @@ if [ -f "${script_dir}/install-baota.sh" ]; then
   echo "install-baota.sh 已在后台启动，查看: cat baota-install.log / baota-panel-url.txt"
 fi
 
-# 固定隧道由面板「重启固定隧道」触发 sync-named-tunnel.sh，避免与 entrypoint 重复启动
-echo "固定隧道请在管理面板保存配置后点击「重启固定隧道」"
+# 固定隧道由 suoha 在 Xray 就绪后自动 sync；宝塔装好后 install-baota 推送面板端口路由
+if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-${APPSETTING_CLOUDFLARE_TUNNEL_TOKEN:-}}" ]; then
+  echo "已配置固定隧道：suoha 启动 Xray 后将自动拉起 cloudflared"
+else
+  echo "未设置 CLOUDFLARE_TUNNEL_TOKEN，跳过固定隧道"
+fi
 
 # [ -e npc.sh ] && bash npc.sh
 # [ -e nezha.sh ] && bash nezha.sh

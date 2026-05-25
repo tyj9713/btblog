@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BTBlog 控制台</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
   <style>
     :root {
       --bg: #eef2f5;
@@ -356,6 +357,39 @@
       font-family: inherit;
     }
 
+    .terminal-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .terminal-status {
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+
+    .terminal-shell {
+      border: 1px solid #1b2433;
+      border-radius: var(--radius);
+      background: #0b1220;
+      min-height: 420px;
+      height: min(68vh, 720px);
+      overflow: hidden;
+      padding: 8px;
+    }
+
+    #terminal-container {
+      width: 100%;
+      height: 100%;
+    }
+
+    .terminal-shell .xterm {
+      height: 100%;
+    }
+
     .port-bind-form {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 140px auto;
@@ -574,6 +608,9 @@
           <li class="nav-item" role="presentation">
             <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs-content" type="button" role="tab" aria-controls="logs-content" aria-selected="false">诊断</button>
           </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="terminal-tab" data-bs-toggle="tab" data-bs-target="#terminal-content" type="button" role="tab" aria-controls="terminal-content" aria-selected="false">终端</button>
+          </li>
         </ul>
 
         <div class="tab-content" id="infoTabContent">
@@ -791,6 +828,25 @@
               </div>
             </div>
           </div>
+
+          <div class="tab-pane fade" id="terminal-content" role="tabpanel" aria-labelledby="terminal-tab" tabindex="0">
+            <div class="view-head">
+              <div>
+                <h2 class="view-title">终端</h2>
+                <p class="panel-note">在服务器上执行 shell 命令。需已登录管理员会话；工作目录默认为应用运行目录。</p>
+              </div>
+            </div>
+            <div class="terminal-toolbar">
+              <div class="terminal-status" id="terminal-status">未连接</div>
+              <div class="view-actions">
+                <button id="terminal-reconnect-btn" class="btn btn-refresh" type="button">重新连接</button>
+                <button id="terminal-clear-btn" class="btn btn-refresh" type="button">清屏</button>
+              </div>
+            </div>
+            <div class="terminal-shell">
+              <div id="terminal-container" aria-label="Web terminal"></div>
+            </div>
+          </div>
         </div>
       </section>
     </section>
@@ -798,6 +854,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", function() {
       const startBtn = document.getElementById("start-btn");
@@ -831,7 +889,16 @@
       const operationError = document.getElementById("operation-error");
       const operationResult = document.getElementById("operation-result");
       const lastRefresh = document.getElementById("last-refresh");
+      const terminalStatus = document.getElementById("terminal-status");
+      const terminalReconnectBtn = document.getElementById("terminal-reconnect-btn");
+      const terminalClearBtn = document.getElementById("terminal-clear-btn");
+      const terminalContainer = document.getElementById("terminal-container");
       let namedTunnelEnabled = false;
+      let terminalTerm = null;
+      let terminalFitAddon = null;
+      let terminalWs = null;
+      let terminalConnected = false;
+      let terminalInfo = null;
 
       function setMessage(element, type, message) {
         element.className = type ? `message ${type}` : "message";
@@ -870,8 +937,128 @@
             this.classList.add("active");
             this.setAttribute("aria-selected", "true");
             target.classList.add("show", "active");
+
+            if (this.id === "terminal-tab") {
+              connectTerminal();
+            }
           });
         });
+      }
+
+      function setTerminalStatus(text, isError) {
+        if (!terminalStatus) return;
+        terminalStatus.textContent = text;
+        terminalStatus.style.color = isError ? "var(--red)" : "var(--muted)";
+      }
+
+      function buildTerminalWsUrl(wsPath) {
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        return `${protocol}//${window.location.host}${wsPath}`;
+      }
+
+      function ensureTerminalInstance() {
+        if (terminalTerm || !terminalContainer || !window.Terminal) {
+          return terminalTerm;
+        }
+        terminalTerm = new window.Terminal({
+          cursorBlink: true,
+          fontFamily: "Consolas, \"Courier New\", monospace",
+          fontSize: 14,
+          theme: {
+            background: "#0b1220",
+            foreground: "#d7e0ea",
+            cursor: "#7ec8ff",
+          },
+          allowProposedApi: true,
+        });
+        if (window.FitAddon?.FitAddon) {
+          terminalFitAddon = new window.FitAddon.FitAddon();
+          terminalTerm.loadAddon(terminalFitAddon);
+        }
+        terminalTerm.open(terminalContainer);
+        terminalTerm.onData((data) => {
+          if (terminalWs && terminalWs.readyState === WebSocket.OPEN) {
+            terminalWs.send(data);
+          }
+        });
+        return terminalTerm;
+      }
+
+      function fitTerminal() {
+        if (terminalFitAddon && terminalTerm) {
+          terminalFitAddon.fit();
+        }
+      }
+
+      function disconnectTerminal() {
+        terminalConnected = false;
+        if (terminalWs) {
+          try {
+            terminalWs.close();
+          } catch {
+            // ignore
+          }
+          terminalWs = null;
+        }
+      }
+
+      async function connectTerminal() {
+        if (!terminalContainer) return;
+        if (terminalWs && (terminalWs.readyState === WebSocket.CONNECTING || terminalWs.readyState === WebSocket.OPEN)) {
+          fitTerminal();
+          return;
+        }
+
+        disconnectTerminal();
+        setTerminalStatus("连接中...", false);
+
+        try {
+          if (!terminalInfo) {
+            terminalInfo = await fetchJson("/terminal-info");
+          }
+          ensureTerminalInstance();
+          fitTerminal();
+
+          const wsUrl = buildTerminalWsUrl(terminalInfo.wsPath || "/admin/terminal/ws");
+          terminalWs = new WebSocket(wsUrl);
+          terminalWs.binaryType = "arraybuffer";
+
+          terminalWs.addEventListener("open", () => {
+            terminalConnected = true;
+            const cwd = terminalInfo.cwd || "-";
+            setTerminalStatus(`已连接 · ${cwd}`, false);
+            fitTerminal();
+          });
+
+          terminalWs.addEventListener("message", (event) => {
+            if (!terminalTerm) return;
+            if (event.data instanceof ArrayBuffer) {
+              terminalTerm.write(new TextDecoder().decode(event.data));
+              return;
+            }
+            terminalTerm.write(String(event.data));
+          });
+
+          terminalWs.addEventListener("close", () => {
+            terminalConnected = false;
+            terminalWs = null;
+            setTerminalStatus("连接已断开", true);
+            if (terminalTerm) {
+              terminalTerm.write("\r\n\r\n[terminal] 连接已断开，点击「重新连接」恢复。\r\n");
+            }
+          });
+
+          terminalWs.addEventListener("error", () => {
+            setTerminalStatus("连接失败", true);
+          });
+        } catch (error) {
+          setTerminalStatus(`连接失败: ${error.message}`, true);
+          showError(error.message || "终端连接失败");
+        }
+      }
+
+      function isTerminalTabActive() {
+        return document.getElementById("terminal-tab")?.classList.contains("active");
       }
 
       function setPanelText(id, text) {
@@ -1456,6 +1643,23 @@
           const data = await fetchJson("/admin/logout", { method: "POST" });
           window.location.href = data.redirect || "/";
         });
+      });
+
+      terminalReconnectBtn?.addEventListener("click", function() {
+        disconnectTerminal();
+        withButtonState(this, "连接中...", connectTerminal);
+      });
+
+      terminalClearBtn?.addEventListener("click", function() {
+        if (terminalTerm) {
+          terminalTerm.clear();
+        }
+      });
+
+      window.addEventListener("resize", () => {
+        if (isTerminalTabActive()) {
+          fitTerminal();
+        }
       });
 
       setupTabs("infoTabs");

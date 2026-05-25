@@ -184,6 +184,29 @@ start_baota_service() {
   return 1
 }
 
+publish_named_tunnel_routes() {
+  if ! uses_named_tunnel; then
+    return 0
+  fi
+  local publish_script="${RUNTIME_DIR}/scripts/publish-tunnel-routes.sh"
+  if [ ! -f "$publish_script" ]; then
+    publish_script="${SCRIPT_DIR}/scripts/publish-tunnel-routes.sh"
+  fi
+  if [ ! -f "$publish_script" ]; then
+    log "未找到 publish-tunnel-routes.sh，跳过路由推送"
+    return 1
+  fi
+  local port
+  port="$(read_panel_port)"
+  log "宝塔已就绪 (port=${port})，推送固定隧道路由..."
+  if REASON=baota-installed ARGO_RUNTIME_DIR="$RUNTIME_DIR" bash "$publish_script" >>"$INSTALL_LOG" 2>&1; then
+    log "固定隧道路由推送完成"
+    return 0
+  fi
+  log "固定隧道路由推送失败，可在管理面板手动同步"
+  return 1
+}
+
 write_panel_url_file() {
   local port path bt_host public_url
   port="$(read_panel_port)"
@@ -279,6 +302,7 @@ main() {
   start_baota_service || true
   save_bt_default
   write_panel_url_file || log "宝塔访问地址写入失败，可稍后由保活重试"
+  publish_named_tunnel_routes || true
 
   log "install-baota.sh 结束"
 }
