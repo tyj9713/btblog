@@ -627,6 +627,11 @@ bootstrapNamedTunnelConfig()
 // 启动 express 服务器与 WebSocket 终端
 const port = process.env.PORT || 443;
 const server = http.createServer(app);
+// WebSocket 终端长连接：禁用 HTTP 空闲超时，避免仅输出或长时间无输入时被 Node/代理断开
+server.timeout = 0;
+server.headersTimeout = 0;
+server.requestTimeout = 0;
+server.keepAliveTimeout = 86_400_000;
 
 const terminalServer = createTerminalServer({
   server,

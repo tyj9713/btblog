@@ -4,6 +4,9 @@ const { spawn } = require("node:child_process");
 
 const {
   TERMINAL_WS_PATH,
+  KEEPALIVE_MS,
+  tryParseControlMessage,
+  handleHeartbeatMessage,
   createTerminalServer,
   spawnInteractiveShell,
 } = require("../lib/terminal-server");
@@ -19,6 +22,26 @@ function wsAvailable() {
 
 async function testTerminalWsPathConstant() {
   assert.equal(TERMINAL_WS_PATH, "/admin/terminal/ws");
+  assert.equal(KEEPALIVE_MS, 20_000);
+}
+
+async function testTerminalHeartbeatMessages() {
+  const sent = [];
+  const ws = {
+    readyState: 1,
+    OPEN: 1,
+    send(payload) {
+      sent.push(payload);
+    },
+  };
+
+  assert.equal(tryParseControlMessage('{"type":"ping"}')?.type, "ping");
+  assert.equal(tryParseControlMessage("echo hello"), null);
+
+  assert.equal(handleHeartbeatMessage({ type: "ping" }, ws), true);
+  assert.deepEqual(sent, [JSON.stringify({ type: "pong" })]);
+  assert.equal(handleHeartbeatMessage({ type: "pong" }, ws), true);
+  assert.equal(handleHeartbeatMessage({ type: "resize", cols: 80, rows: 24 }, ws), false);
 }
 
 async function testCreateTerminalServerRequiresOptions() {
@@ -166,6 +189,7 @@ async function testSpawnInteractiveShellReturnsProcess() {
 
 module.exports = {
   testTerminalWsPathConstant,
+  testTerminalHeartbeatMessages,
   testCreateTerminalServerRequiresOptions,
   testIssueTerminalTicketRequiresSession,
   testTerminalUpgradeRejectsUnauthorized,

@@ -921,6 +921,8 @@
       let terminalWs = null;
       let terminalConnected = false;
       let terminalInfo = null;
+      let terminalKeepaliveTimer = null;
+      const TERMINAL_KEEPALIVE_MS = 20000;
 
       function setMessage(element, type, message) {
         element.className = type ? `message ${type}` : "message";
@@ -1035,7 +1037,60 @@
         terminalWs.send(JSON.stringify({ type: "resize", cols: nextCols, rows: nextRows }));
       }
 
+      function clearTerminalKeepalive() {
+        if (terminalKeepaliveTimer) {
+          clearInterval(terminalKeepaliveTimer);
+          terminalKeepaliveTimer = null;
+        }
+      }
+
+      function startTerminalKeepalive() {
+        clearTerminalKeepalive();
+        terminalKeepaliveTimer = setInterval(() => {
+          if (!terminalWs || terminalWs.readyState !== WebSocket.OPEN) {
+            clearTerminalKeepalive();
+            return;
+          }
+          try {
+            terminalWs.send(JSON.stringify({ type: "ping" }));
+          } catch {
+            clearTerminalKeepalive();
+          }
+        }, TERMINAL_KEEPALIVE_MS);
+      }
+
+      function handleTerminalMessage(raw) {
+        if (!terminalTerm) return;
+        let text = "";
+        if (raw instanceof ArrayBuffer) {
+          text = new TextDecoder().decode(raw);
+        } else if (raw instanceof Blob) {
+          raw.text().then((value) => handleTerminalMessage(value)).catch(() => {});
+          return;
+        } else {
+          text = String(raw);
+        }
+        if (text.startsWith("{")) {
+          try {
+            const message = JSON.parse(text);
+            if (message.type === "ping") {
+              if (terminalWs && terminalWs.readyState === WebSocket.OPEN) {
+                terminalWs.send(JSON.stringify({ type: "pong" }));
+              }
+              return;
+            }
+            if (message.type === "pong") {
+              return;
+            }
+          } catch {
+            // fall through to terminal output
+          }
+        }
+        terminalTerm.write(text);
+      }
+
       function disconnectTerminal() {
+        clearTerminalKeepalive();
         terminalConnected = false;
         terminalInfo = null;
         if (terminalWs) {
@@ -1093,23 +1148,16 @@
             }
             fitTerminal();
             sendTerminalResize();
+            startTerminalKeepalive();
             terminalTerm?.focus();
           });
 
           terminalWs.addEventListener("message", (event) => {
-            if (!terminalTerm) return;
-            if (event.data instanceof ArrayBuffer) {
-              terminalTerm.write(new TextDecoder().decode(event.data));
-              return;
-            }
-            if (event.data instanceof Blob) {
-              event.data.text().then((text) => terminalTerm.write(text)).catch(() => {});
-              return;
-            }
-            terminalTerm.write(String(event.data));
+            handleTerminalMessage(event.data);
           });
 
           terminalWs.addEventListener("close", (event) => {
+            clearTerminalKeepalive();
             terminalConnected = false;
             terminalWs = null;
             const reason = event.reason ? ` (${event.reason})` : "";
@@ -1117,7 +1165,7 @@
             if (terminalTerm) {
               let hint = "";
               if (event.code === 1006) {
-                hint = "；1006 多为代理/WebSocket 中断或未安装 node-pty（需 npm install 后重启）";
+                hint = "；1006 多为代理/WebSocket 空闲超时或网络中断，可点击「重新连接」";
               }
               terminalTerm.write(`\r\n\r\n[terminal] 连接已断开 code=${event.code}${reason}${hint}，点击「重新连接」恢复。\r\n`);
             }
