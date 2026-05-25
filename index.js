@@ -643,11 +643,12 @@ const terminalServer = createTerminalServer({
 app.get("/terminal-info", auth.requireAuth, (req, res) => {
   const session = auth.getSession(req);
   const ptyReady = isPtyAvailable();
+  const requestedSessionId = typeof req.query.sessionId === "string" ? req.query.sessionId : null;
   res.json({
     ok: true,
     cwd: runtimeDir,
     wsPath: TERMINAL_WS_PATH,
-    ticket: terminalServer.issueTicket(session),
+    ticket: terminalServer.issueTicket(session, requestedSessionId),
     shell: process.env.TERMINAL_SHELL || "bash",
     pty: ptyReady && process.env.TERMINAL_DISABLE_PTY !== "true",
     ptyHint: ptyReady

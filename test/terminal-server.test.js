@@ -4,6 +4,7 @@ const { spawn } = require("node:child_process");
 
 const {
   TERMINAL_WS_PATH,
+  DEFAULT_SESSION_GRACE_MS,
   KEEPALIVE_MS,
   tryParseControlMessage,
   handleHeartbeatMessage,
@@ -23,6 +24,7 @@ function wsAvailable() {
 async function testTerminalWsPathConstant() {
   assert.equal(TERMINAL_WS_PATH, "/admin/terminal/ws");
   assert.equal(KEEPALIVE_MS, 20_000);
+  assert.equal(DEFAULT_SESSION_GRACE_MS, 120_000);
 }
 
 async function testTerminalHeartbeatMessages() {
@@ -164,6 +166,88 @@ setTimeout(() => process.exit(2), 5000);
   }
 }
 
+async function testTerminalReconnectPreservesShellSession() {
+  if (process.platform === "win32" || !wsAvailable()) {
+    return;
+  }
+
+  const WebSocket = require("ws");
+  const server = http.createServer((_req, res) => {
+    res.end("ok");
+  });
+
+  const terminal = createTerminalServer({
+    server,
+    getSession: () => null,
+    cwd: process.cwd(),
+    sessionGraceMs: 5000,
+  });
+
+  await new Promise((resolve) => server.listen(0, resolve));
+  const { port } = server.address();
+
+  function connect(ticket) {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}${TERMINAL_WS_PATH}?ticket=${ticket}`);
+    let output = "";
+    let sessionId = null;
+    const sessionReady = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("terminal session id timeout")), 5000);
+      ws.on("message", (data) => {
+        const text = data.toString();
+        try {
+          const message = JSON.parse(text);
+          if (message.type === "session" && message.sessionId) {
+            sessionId = message.sessionId;
+            clearTimeout(timer);
+            resolve(sessionId);
+            return;
+          }
+        } catch {
+          // terminal output
+        }
+        output += text;
+      });
+      ws.on("error", reject);
+    });
+    return {
+      ws,
+      sessionReady,
+      get output() {
+        return output;
+      },
+    };
+  }
+
+  async function waitForOutput(client, pattern) {
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      if (pattern.test(client.output)) {
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error(`timed out waiting for ${pattern}: ${client.output}`);
+  }
+
+  try {
+    const first = connect(terminal.issueTicket({ user: "admin" }));
+    const sessionId = await first.sessionReady;
+    first.ws.send("export CODEX_RECONNECT_MARK=still_here\n");
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    first.ws.close();
+    await new Promise((resolve) => first.ws.once("close", resolve));
+
+    const second = connect(terminal.issueTicket({ user: "admin" }, sessionId));
+    await second.sessionReady;
+    second.ws.send('printf "MARK:%s\\n" "$CODEX_RECONNECT_MARK"\nexit\n');
+    await waitForOutput(second, /MARK:still_here/);
+    await new Promise((resolve) => second.ws.once("close", resolve));
+  } finally {
+    terminal.wss.close();
+    await new Promise((resolve) => server.close(resolve));
+  }
+}
+
 async function testSpawnInteractiveShellReturnsProcess() {
   if (process.platform === "win32") {
     return;
@@ -194,5 +278,6 @@ module.exports = {
   testIssueTerminalTicketRequiresSession,
   testTerminalUpgradeRejectsUnauthorized,
   testTerminalUpgradeAcceptsTicket,
+  testTerminalReconnectPreservesShellSession,
   testSpawnInteractiveShellReturnsProcess,
 };

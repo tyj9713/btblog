@@ -922,7 +922,12 @@
       let terminalConnected = false;
       let terminalInfo = null;
       let terminalKeepaliveTimer = null;
+      let terminalReconnectTimer = null;
+      let terminalReconnectAttempts = 0;
+      let terminalSessionId = null;
       const TERMINAL_KEEPALIVE_MS = 20000;
+      const TERMINAL_RECONNECT_MAX_ATTEMPTS = 5;
+      const TERMINAL_RECONNECT_BASE_MS = 1000;
 
       function setMessage(element, type, message) {
         element.className = type ? `message ${type}` : "message";
@@ -1044,6 +1049,13 @@
         }
       }
 
+      function clearTerminalReconnect() {
+        if (terminalReconnectTimer) {
+          clearTimeout(terminalReconnectTimer);
+          terminalReconnectTimer = null;
+        }
+      }
+
       function startTerminalKeepalive() {
         clearTerminalKeepalive();
         terminalKeepaliveTimer = setInterval(() => {
@@ -1082,6 +1094,10 @@
             if (message.type === "pong") {
               return;
             }
+            if (message.type === "session" && message.sessionId) {
+              terminalSessionId = String(message.sessionId);
+              return;
+            }
           } catch {
             // fall through to terminal output
           }
@@ -1091,19 +1107,35 @@
 
       function disconnectTerminal() {
         clearTerminalKeepalive();
+        clearTerminalReconnect();
         terminalConnected = false;
         terminalInfo = null;
         if (terminalWs) {
+          const closingWs = terminalWs;
+          terminalWs = null;
           try {
-            terminalWs.close();
+            closingWs.close();
           } catch {
             // ignore
           }
-          terminalWs = null;
         }
       }
 
-      async function connectTerminal() {
+      function scheduleTerminalReconnect() {
+        if (!isTerminalTabActive() || terminalReconnectAttempts >= TERMINAL_RECONNECT_MAX_ATTEMPTS) {
+          return;
+        }
+        clearTerminalReconnect();
+        terminalReconnectAttempts += 1;
+        const delay = Math.min(TERMINAL_RECONNECT_BASE_MS * terminalReconnectAttempts, 5000);
+        setTerminalStatus(`连接已断开，${delay / 1000} 秒后自动重连...`, true);
+        terminalReconnectTimer = setTimeout(() => {
+          terminalReconnectTimer = null;
+          connectTerminal({ reconnect: true });
+        }, delay);
+      }
+
+      async function connectTerminal(options = {}) {
         if (!terminalContainer) return;
         if (terminalWs && (terminalWs.readyState === WebSocket.CONNECTING || terminalWs.readyState === WebSocket.OPEN)) {
           fitTerminal();
@@ -1111,15 +1143,19 @@
           return;
         }
 
+        clearTerminalReconnect();
         disconnectTerminal();
-        setTerminalStatus("连接中...", false);
+        setTerminalStatus(options.reconnect ? "正在恢复终端会话..." : "连接中...", false);
 
         try {
           if (!window.Terminal) {
             throw new Error("xterm 组件加载失败，请检查 CDN 或刷新页面");
           }
 
-          terminalInfo = await fetchJson("/terminal-info");
+          const infoUrl = terminalSessionId
+            ? `/terminal-info?sessionId=${encodeURIComponent(terminalSessionId)}`
+            : "/terminal-info";
+          terminalInfo = await fetchJson(infoUrl);
           ensureTerminalInstance();
           fitTerminal();
 
@@ -1135,11 +1171,14 @@
             params.set("rows", String(terminalTerm.rows));
           }
           const wsUrl = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
-          terminalWs = new WebSocket(wsUrl);
-          terminalWs.binaryType = "arraybuffer";
+          const ws = new WebSocket(wsUrl);
+          terminalWs = ws;
+          ws.binaryType = "arraybuffer";
 
-          terminalWs.addEventListener("open", () => {
+          ws.addEventListener("open", () => {
+            if (terminalWs !== ws) return;
             terminalConnected = true;
+            terminalReconnectAttempts = 0;
             const cwd = terminalInfo.cwd || "-";
             const mode = terminalInfo.pty ? "pty" : "pipe";
             setTerminalStatus(`已连接 · ${cwd} · ${mode}`, false);
@@ -1152,26 +1191,35 @@
             terminalTerm?.focus();
           });
 
-          terminalWs.addEventListener("message", (event) => {
+          ws.addEventListener("message", (event) => {
+            if (terminalWs !== ws) return;
             handleTerminalMessage(event.data);
           });
 
-          terminalWs.addEventListener("close", (event) => {
+          ws.addEventListener("close", (event) => {
+            if (terminalWs !== ws) return;
             clearTerminalKeepalive();
             terminalConnected = false;
             terminalWs = null;
             const reason = event.reason ? ` (${event.reason})` : "";
+            if (event.code === 1000 && event.reason === "shell-exit") {
+              terminalSessionId = null;
+            }
             setTerminalStatus(`连接已断开 · code=${event.code}${reason}`, true);
             if (terminalTerm) {
               let hint = "";
               if (event.code === 1006) {
-                hint = "；1006 多为代理/WebSocket 空闲超时或网络中断，可点击「重新连接」";
+                hint = "；正在尝试恢复同一终端会话";
               }
               terminalTerm.write(`\r\n\r\n[terminal] 连接已断开 code=${event.code}${reason}${hint}，点击「重新连接」恢复。\r\n`);
             }
+            if (!(event.code === 1000 && event.reason === "shell-exit")) {
+              scheduleTerminalReconnect();
+            }
           });
 
-          terminalWs.addEventListener("error", () => {
+          ws.addEventListener("error", () => {
+            if (terminalWs !== ws) return;
             setTerminalStatus("连接失败", true);
           });
         } catch (error) {
