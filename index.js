@@ -12,7 +12,7 @@ const { CloudflareTunnelManager } = require("./lib/cloudflare-tunnel-manager");
 const { resolveRuntimeDir } = require("./lib/runtime");
 const { createAuth } = require("./lib/auth");
 const { runScript } = require("./lib/script-runner");
-const { createTerminalServer, TERMINAL_WS_PATH } = require("./lib/terminal-server");
+const { createTerminalServer, TERMINAL_WS_PATH, isPtyAvailable } = require("./lib/terminal-server");
 
 const execAsync = promisify(exec);
 const runtimeDir = resolveRuntimeDir(process.env, __dirname);
@@ -316,13 +316,53 @@ app.post('/start-baota', auth.requireAuth, async (req, res) => {
       console.error("后台启动宝塔任务失败:", error.message);
     });
     res.json({
-      message: alreadyStarting ? "宝塔任务正在执行中" : "宝塔面板/隧道任务已在后台启动，请查看安装日志",
+      message: alreadyStarting ? "宝塔任务正在执行中" : "宝塔安装/启动任务已在后台提交，请查看安装日志",
       starting: true,
     });
   } catch (error) {
     res.status(500).json({
       message: "提交宝塔任务失败",
       error: error.message,
+    });
+  }
+});
+
+app.post('/stop-baota', auth.requireAuth, async (req, res) => {
+  try {
+    res.json(await baotaManager.stop());
+  } catch (error) {
+    res.status(500).json({
+      message: "停止宝塔失败",
+      error: error.message,
+    });
+  }
+});
+
+app.post('/restart-baota', auth.requireAuth, async (req, res) => {
+  try {
+    baotaManager.restart("manual").catch((error) => {
+      console.error("后台重启宝塔失败:", error.message);
+    });
+    res.json({
+      message: "宝塔重启/刷新任务已提交（将清理旧展示信息并重新采集）",
+      starting: true,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "提交宝塔重启失败",
+      error: error.message,
+    });
+  }
+});
+
+app.post("/stop-tunnel", auth.requireAuth, async (req, res) => {
+  try {
+    await cloudflareTunnelManager.stop();
+    res.json({ ok: true, message: "固定隧道已停止" });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      message: error.message,
     });
   }
 });
@@ -600,13 +640,17 @@ const terminalServer = createTerminalServer({
 
 app.get("/terminal-info", auth.requireAuth, (req, res) => {
   const session = auth.getSession(req);
+  const ptyReady = isPtyAvailable();
   res.json({
     ok: true,
     cwd: runtimeDir,
     wsPath: TERMINAL_WS_PATH,
     ticket: terminalServer.issueTicket(session),
     shell: process.env.TERMINAL_SHELL || "bash",
-    pty: process.env.TERMINAL_DISABLE_PTY !== "true",
+    pty: ptyReady && process.env.TERMINAL_DISABLE_PTY !== "true",
+    ptyHint: ptyReady
+      ? ""
+      : "服务器未安装 node-pty，请在运行目录执行 npm install 后重启 Node 应用",
   });
 });
 

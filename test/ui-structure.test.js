@@ -53,6 +53,9 @@ async function testBaotaPanelStructure() {
   assert.match(html, /function\s+getBaotaInfo\s*\(/);
   assert.match(html, /\/baota-info/);
   assert.match(html, /\/start-baota/);
+  assert.match(html, /\/stop-baota/);
+  assert.match(html, /\/restart-baota/);
+  assert.match(html, /\/stop-tunnel/);
   assert.match(html, /baota-install\.log/);
 }
 

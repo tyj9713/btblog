@@ -578,19 +578,35 @@
         </div>
 
         <div class="rail-section">
-          <h2 class="section-title">主要操作</h2>
+          <h2 class="section-title">节点 (Xray)</h2>
           <div class="action-grid">
-            <button id="start-btn" class="btn btn-control btn-start">启动服务</button>
-            <button id="stop-btn" class="btn btn-control btn-stop">停止服务</button>
-            <button id="refresh-overview" class="btn btn-refresh">刷新总览</button>
+            <button id="start-btn" class="btn btn-control btn-start" type="button">启动</button>
+            <button id="stop-btn" class="btn btn-control btn-stop" type="button">停止</button>
+            <button id="restart-btn" class="btn btn-control btn-restart" type="button">重启</button>
           </div>
         </div>
 
         <div class="rail-section">
-          <h2 class="section-title">高级操作</h2>
+          <h2 class="section-title">固定隧道</h2>
           <div class="action-grid">
-            <button id="restart-btn" class="btn btn-control btn-restart">重启服务</button>
-            <button id="start-baota-btn" class="btn btn-control btn-refresh">启动宝塔</button>
+            <button id="start-tunnel-btn" class="btn btn-control btn-start" type="button">启动</button>
+            <button id="stop-tunnel-btn" class="btn btn-control btn-stop" type="button">停止</button>
+          </div>
+        </div>
+
+        <div class="rail-section">
+          <h2 class="section-title">宝塔</h2>
+          <div class="action-grid">
+            <button id="start-baota-btn" class="btn btn-control btn-start" type="button">启动/安装</button>
+            <button id="stop-baota-btn" class="btn btn-control btn-stop" type="button">停止</button>
+            <button id="restart-baota-btn" class="btn btn-control btn-restart" type="button">重启刷新</button>
+          </div>
+        </div>
+
+        <div class="rail-section">
+          <h2 class="section-title">总览</h2>
+          <div class="action-grid">
+            <button id="refresh-overview" class="btn btn-refresh" type="button">刷新总览</button>
           </div>
         </div>
       </aside>
@@ -717,7 +733,6 @@
             </div>
             <div class="form-actions">
               <button id="save-tunnel-config-btn" class="btn btn-control btn-start">保存配置并推送路由</button>
-              <button id="start-tunnel-btn" class="btn btn-control btn-refresh">启动固定隧道</button>
             </div>
             <pre id="named-tunnel-config-info" class="data-panel empty">加载中...</pre>
             <div class="view-head" style="margin-top: 14px;">
@@ -871,6 +886,9 @@
       const refreshLogsBtn = document.getElementById("refresh-logs");
       const refreshBaotaBtn = document.getElementById("refresh-baota");
       const startBaotaBtn = document.getElementById("start-baota-btn");
+      const stopBaotaBtn = document.getElementById("stop-baota-btn");
+      const restartBaotaBtn = document.getElementById("restart-baota-btn");
+      const stopTunnelBtn = document.getElementById("stop-tunnel-btn");
       const refreshPortTunnelsBtn = document.getElementById("refresh-port-tunnels");
       const refreshTunnelConfigBtn = document.getElementById("refresh-tunnel-config");
       const refreshNamedTunnelLogBtn = document.getElementById("refresh-named-tunnel-log");
@@ -1068,8 +1086,11 @@
           terminalWs.addEventListener("open", () => {
             terminalConnected = true;
             const cwd = terminalInfo.cwd || "-";
-            const mode = terminalInfo.pty === false ? "pipe" : "pty";
+            const mode = terminalInfo.pty ? "pty" : "pipe";
             setTerminalStatus(`已连接 · ${cwd} · ${mode}`, false);
+            if (!terminalInfo.pty && terminalInfo.ptyHint) {
+              terminalTerm?.write(`\r\n[terminal] ${terminalInfo.ptyHint}\r\n`);
+            }
             fitTerminal();
             sendTerminalResize();
             terminalTerm?.focus();
@@ -1094,7 +1115,11 @@
             const reason = event.reason ? ` (${event.reason})` : "";
             setTerminalStatus(`连接已断开 · code=${event.code}${reason}`, true);
             if (terminalTerm) {
-              terminalTerm.write(`\r\n\r\n[terminal] 连接已断开 code=${event.code}${reason}，点击「重新连接」恢复。\r\n`);
+              let hint = "";
+              if (event.code === 1006) {
+                hint = "；1006 多为代理/WebSocket 中断或未安装 node-pty（需 npm install 后重启）";
+              }
+              terminalTerm.write(`\r\n\r\n[terminal] 连接已断开 code=${event.code}${reason}${hint}，点击「重新连接」恢复。\r\n`);
             }
           });
 
@@ -1612,6 +1637,36 @@
           const data = await fetchJson("/start-baota", { method: "POST" });
           showResult(`${data.message}，请稍后刷新宝塔。`);
           await getBaotaInfo();
+          await getLogs();
+        });
+      });
+
+      stopBaotaBtn?.addEventListener("click", function() {
+        setMessage(operationError, "", "");
+        withButtonState(this, "停止中...", async () => {
+          const data = await fetchJson("/stop-baota", { method: "POST" });
+          showResult(data.message || "宝塔已停止");
+          await getBaotaInfo();
+        });
+      });
+
+      restartBaotaBtn?.addEventListener("click", function() {
+        setMessage(operationError, "", "");
+        setMessage(operationResult, "", "");
+        withButtonState(this, "重启中...", async () => {
+          const data = await fetchJson("/restart-baota", { method: "POST" });
+          showResult(data.message || "宝塔重启任务已提交");
+          await getBaotaInfo();
+          await getLogs();
+        });
+      });
+
+      stopTunnelBtn?.addEventListener("click", function() {
+        setMessage(operationError, "", "");
+        withButtonState(this, "停止中...", async () => {
+          const data = await fetchJson("/stop-tunnel", { method: "POST" });
+          showResult(data.message || "固定隧道已停止");
+          await updateServiceStatus();
           await getLogs();
         });
       });

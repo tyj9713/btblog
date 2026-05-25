@@ -22,6 +22,7 @@ echo "[$(timestamp_iso)] cleanup-runtime: ${RUNTIME_DIR}"
 static_files=(
   named-tunnel.log
   named-tunnel.pid
+  named-tunnel-watch.pid
   named-tunnel-sync-result.json
   named-tunnel-route-publish.json
   baota-install.log
@@ -45,7 +46,7 @@ done
 shopt -u nullglob
 
 # 面板文件已不存在时，清除安装标记以便重新采集宝塔信息
-if [ -f "${RUNTIME_DIR}/.baota-installed" ] && [ ! -x /www/server/panel/BT-Panel ]; then
+if [ -f "${RUNTIME_DIR}/.baota-installed" ] && [ ! -x /www/server/panel/BT-Panel ] && [ ! -f /www/server/panel/BT-Panel ]; then
   remove_if_exists "${RUNTIME_DIR}/.baota-installed"
 fi
 

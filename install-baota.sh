@@ -19,6 +19,7 @@ URL_FILE="${RUNTIME_DIR}/baota-panel-url.txt"
 DEFAULT_FILE="${RUNTIME_DIR}/baota-default.txt"
 MARKER_FILE="${RUNTIME_DIR}/.baota-installed"
 INSTALL_SCRIPT_URL="${BT_INSTALL_URL:-https://bt.cxinyun.com/install/install_panel.sh}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 
 log() {
   echo "[$(date -Iseconds)] $*" | tee -a "$INSTALL_LOG"
@@ -37,6 +38,22 @@ clear_stale_install_marker() {
 
 is_baota_installed() {
   panel_files_exist
+}
+
+ensure_python_for_bt() {
+  local helper="${RUNTIME_DIR}/scripts/ensure-python-bt.sh"
+  if [ ! -f "$helper" ]; then
+    helper="${SCRIPT_DIR}/scripts/ensure-python-bt.sh"
+  fi
+  if [ -f "$helper" ]; then
+    bash "$helper" >>"$INSTALL_LOG" 2>&1 || log "python 环境准备失败，bt 命令可能不可用"
+  fi
+}
+
+reset_baota_display() {
+  rm -f "$DEFAULT_FILE" "$URL_FILE"
+  echo "" >>"$INSTALL_LOG"
+  echo "[$(date -Iseconds)] ===== 宝塔展示信息已重置 (${REASON:-restart}) =====" | tee -a "$INSTALL_LOG"
 }
 
 download_cloudflared_binary() {
@@ -64,6 +81,8 @@ ensure_cloudflared() {
 }
 
 install_baota_panel() {
+  ensure_python_for_bt
+
   if is_baota_installed; then
     log "宝塔已安装，跳过 install_panel.sh"
     return 0
@@ -122,11 +141,21 @@ read_panel_path() {
 }
 
 save_bt_default() {
+  ensure_python_for_bt
   if [ -x /usr/bin/bt ]; then
-    /usr/bin/bt default >"$DEFAULT_FILE" 2>&1 || true
+    /usr/bin/bt default >"$DEFAULT_FILE" 2>&1 || {
+      log "bt default 失败，改用面板文件采集登录信息"
+      write_bt_default_fallback
+    }
   elif command -v bt >/dev/null 2>&1; then
-    bt default >"$DEFAULT_FILE" 2>&1 || true
-  elif [ -f /www/server/panel/BT-Panel ]; then
+    bt default >"$DEFAULT_FILE" 2>&1 || write_bt_default_fallback
+  else
+    write_bt_default_fallback
+  fi
+}
+
+write_bt_default_fallback() {
+  if [ -f /www/server/panel/BT-Panel ]; then
     {
       echo "# bt 命令不可用，以下为面板路径信息"
       echo "panel=/www/server/panel"
@@ -156,6 +185,7 @@ start_baota_service() {
   if ! panel_files_exist; then
     return 1
   fi
+  ensure_python_for_bt
   if is_panel_running; then
     log "宝塔面板进程已在运行"
     return 0
@@ -295,7 +325,20 @@ start_panel_quick_tunnel() {
 main() {
   mkdir -p "$RUNTIME_DIR"
   echo "" >>"$INSTALL_LOG"
-  echo "[$(date -Iseconds)] install-baota.sh 启动, runtime=$RUNTIME_DIR" | tee -a "$INSTALL_LOG"
+  echo "[$(date -Iseconds)] install-baota.sh 启动, runtime=$RUNTIME_DIR reason=${REASON:-install}" | tee -a "$INSTALL_LOG"
+
+  if [ "${RESTART_ONLY:-false}" = "true" ]; then
+    clear_stale_install_marker
+    reset_baota_display
+    ensure_python_for_bt
+    start_baota_service || true
+    save_bt_default
+    write_panel_url_file || log "宝塔访问地址写入失败"
+    publish_named_tunnel_routes || true
+    log "宝塔重启/刷新完成"
+    return 0
+  fi
+
   clear_stale_install_marker
 
   install_baota_panel || true
