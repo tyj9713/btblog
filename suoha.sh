@@ -168,11 +168,11 @@ save_node_session() {
 	if ! command -v python3 >/dev/null 2>&1; then
 		return 0
 	fi
-	python3 - "$session_file" "$uuid" "$urlpath" "$port" <<'PY'
+	python3 - "$session_file" "$uuid" "$urlpath" "$port" "$argo" <<'PY'
 import json, sys
-path, uuid, urlpath, port = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
+path, uuid, urlpath, port, host = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), sys.argv[5]
 with open(path, "w", encoding="utf-8") as fh:
-    json.dump({"uuid": uuid, "urlpath": urlpath, "port": port}, fh, indent=2)
+    json.dump({"uuid": uuid, "urlpath": urlpath, "port": port, "host": host}, fh, indent=2)
     fh.write("\n")
 PY
 }
@@ -378,65 +378,13 @@ do
 done
 fi
 
-# 确保没有旧的v2ray.txt
-rm -f v2ray.txt
-touch v2ray.txt
+# 保存 Xray 直接生成的原始节点（订阅转换由 /xxxooo 负责）
+rm -f raw-nodes.txt
+echo "vless://${uuid}@${argo}:443?encryption=none&security=tls&type=ws&host=${argo}&path=/${urlpath}#默认节点_TLS" > raw-nodes.txt
 
-# 从订阅链接获取节点信息并生成v2ray.txt
-subscription_url="https://owo.o00o.ooo/sub?uuid=$uuid&encryption=none&security=tls&type=ws&host=$argo&path=$urlpath"
-
-echo "正在生成订阅节点..."
-
-# 下载并解码订阅内容
-encoded_content=$(curl -s "$subscription_url")
-if [ -z "$encoded_content" ]; then
-    echo "获取订阅内容失败，创建默认节点"
-    echo "vless://$uuid@$argo:443?encryption=none&security=tls&type=ws&host=$argo&path=/$urlpath#默认节点_TLS" >> v2ray.txt
-else
-    # Base64解码
-    decoded_content=$(echo "$encoded_content" | base64 -d)
-    echo "$decoded_content" > all_nodes.tmp
-    
-    if [ ! -s all_nodes.tmp ]; then
-        echo "解码订阅内容失败，创建默认节点"
-        echo "vless://$uuid@$argo:443?encryption=none&security=tls&type=ws&host=$argo&path=/$urlpath#默认节点_TLS" >> v2ray.txt
-    else
-        # 处理带TLS的节点
-        grep -E '^vless://' all_nodes.tmp | while read -r line; do
-            # 提取URL编码的节点名称并进行URL解码
-            encoded_name=$(echo "$line" | awk -F'#' '{print $2}')
-            
-            # URL解码函数
-            urldecode() {
-                local url_encoded="${1//+/ }"
-                printf '%b' "${url_encoded//%/\\x}"
-            }
-            
-            # URL解码节点名称
-            node_name=$(urldecode "$encoded_name")
-            
-            # 检查节点名称是否包含指定地区
-            if echo "$node_name" | grep -qi -E '(日本|香港|新加坡|美国)'; then
-                # 提取IP和端口
-                ip_port=$(echo "$line" | awk -F'@' '{print $2}' | awk -F'?' '{print $1}')
-                # 生成新链接
-                new_line="vless://$uuid@$ip_port?encryption=none&security=tls&type=ws&host=$argo&path=/$urlpath#$encoded_name"
-                echo "$new_line" >> v2ray.txt
-            fi
-        done
-        
-        rm -f all_nodes.tmp
-    fi
-fi
-
-# 如果没有找到符合条件的节点，添加默认节点
-if [ ! -s v2ray.txt ]; then
-    echo "未找到符合条件的节点，添加默认节点"
-    echo "vless://$uuid@$argo:443?encryption=none&security=tls&type=ws&host=$argo&path=/$urlpath#默认节点_TLS" >> v2ray.txt
-fi
+save_node_session
 
 if [ "$use_named_tunnel" -eq 1 ]; then
-	save_node_session
 	watch_pid_file="${RUNTIME_DIR}/named-tunnel-watch.pid"
 	watch_running=0
 	if [ -f "$watch_pid_file" ]; then
@@ -451,8 +399,8 @@ if [ "$use_named_tunnel" -eq 1 ]; then
 	fi
 fi
 
-echo "节点生成完成，以下是可用节点："
-cat v2ray.txt
+echo "Xray 原始节点："
+cat raw-nodes.txt
 }
 
 # 设置默认参数
@@ -470,7 +418,7 @@ fi
 kill_quick_cloudflared
 
 # 清理历史文件
-rm -rf v2ray.txt
+rm -rf raw-nodes.txt
 
 # 获取ISP信息
 isp=$(curl -$ips -s https://speed.cloudflare.com/meta | awk -F\" '{print $26"-"$18"-"$30}' | sed -e 's/ /_/g')

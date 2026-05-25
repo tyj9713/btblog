@@ -1,6 +1,7 @@
 const suites = [
   require("./package.test"),
   require("./runtime.test"),
+  require("./node-converter.test"),
   require("./service-manager.test"),
   require("./ui-structure.test"),
   require("./public-pages.test"),

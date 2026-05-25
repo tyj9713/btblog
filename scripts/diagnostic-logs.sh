@@ -22,7 +22,8 @@ echo
 echo "===== runtime files ====="
 ls -la "$RUNTIME_DIR" \
   "${RUNTIME_DIR}/suoha.sh" \
-  "${RUNTIME_DIR}/v2ray.txt" \
+  "${RUNTIME_DIR}/raw-nodes.txt" \
+  "${RUNTIME_DIR}/node-session.json" \
   "${RUNTIME_DIR}/xray" \
   "${RUNTIME_DIR}/cloudflared-linux" \
   "${RUNTIME_DIR}/named-tunnel.log" 2>&1 || true

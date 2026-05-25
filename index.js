@@ -13,6 +13,7 @@ const { resolveRuntimeDir } = require("./lib/runtime");
 const { createAuth } = require("./lib/auth");
 const { runScript } = require("./lib/script-runner");
 const { createTerminalServer, TERMINAL_WS_PATH, isPtyAvailable } = require("./lib/terminal-server");
+const { buildSubscriptionContent } = require("./lib/node-converter");
 
 const execAsync = promisify(exec);
 const runtimeDir = resolveRuntimeDir(process.env, __dirname);
@@ -259,19 +260,17 @@ app.get('/server-info', auth.requireAuth, async (req, res) => {
   }
 });
 
-// 订阅链接（公开，供客户端直接拉取）
-app.get('/xxxooo', (req, res) => {
-  const v2rayPath = runtimePath('v2ray.txt');
-  if (fs.existsSync(v2rayPath)) {
-    fs.readFile(v2rayPath, 'utf8', (err, data) => {
-      if (err) {
-        res.status(500).send("读取v2ray.txt失败");
-      } else {
-        res.send(data);
-      }
-    });
-  } else {
-    res.send("未找到v2ray.txt，请先启动服务");
+// 订阅链接（公开，供客户端直接拉取；从 owo.o00o.ooo 拉取并转换）
+app.get('/xxxooo', async (req, res) => {
+  try {
+    const result = await buildSubscriptionContent(runtimeDir);
+    if (!result.ok) {
+      res.send(result.message);
+      return;
+    }
+    res.send(result.content);
+  } catch (error) {
+    res.status(500).send(`生成订阅失败: ${error.message}`);
   }
 });
 
@@ -411,19 +410,17 @@ app.post("/port-tunnels/unbind", auth.requireAuth, async (req, res) => {
   }
 });
 
-// 获取v2ray链接信息
-app.get('/v2ray-info', auth.requireAuth, (req, res) => {
-  const v2rayPath = runtimePath('v2ray.txt');
-  if (fs.existsSync(v2rayPath)) {
-    fs.readFile(v2rayPath, 'utf8', (err, data) => {
-      if (err) {
-        res.status(500).json({ error: "读取v2ray.txt失败" });
-      } else {
-        res.json({ content: data });
-      }
-    });
-  } else {
-    res.json({ content: "未找到v2ray.txt，请先启动服务" });
+// 获取v2ray链接信息（与 /xxxooo 相同，返回转换后的订阅内容）
+app.get('/v2ray-info', auth.requireAuth, async (req, res) => {
+  try {
+    const result = await buildSubscriptionContent(runtimeDir);
+    if (!result.ok) {
+      res.json({ content: result.message });
+      return;
+    }
+    res.json({ content: result.content });
+  } catch (error) {
+    res.status(500).json({ error: `生成订阅失败: ${error.message}` });
   }
 });
 
