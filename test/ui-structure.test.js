@@ -111,6 +111,7 @@ async function testTerminalPanelStructure() {
   assert.match(html, /id="terminal-reconnect-btn"/);
   assert.match(html, /function connectTerminal\s*\(/);
   assert.match(html, /\/terminal-info/);
+  assert.match(html, /ticket/);
   assert.match(html, /xterm\.min\.js/);
 }
 

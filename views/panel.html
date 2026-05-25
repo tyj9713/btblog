@@ -390,6 +390,10 @@
       height: 100%;
     }
 
+    .terminal-shell .xterm .xterm-screen {
+      cursor: text;
+    }
+
     .port-bind-form {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 140px auto;
@@ -956,6 +960,18 @@
         return `${protocol}//${window.location.host}${wsPath}`;
       }
 
+      function loadFitAddon() {
+        const FitAddonCtor =
+          (window.FitAddon && typeof window.FitAddon === "function" && window.FitAddon) ||
+          (window.FitAddon && typeof window.FitAddon.FitAddon === "function" && window.FitAddon.FitAddon) ||
+          null;
+        if (!FitAddonCtor || terminalFitAddon) {
+          return terminalFitAddon;
+        }
+        terminalFitAddon = new FitAddonCtor();
+        return terminalFitAddon;
+      }
+
       function ensureTerminalInstance() {
         if (terminalTerm || !terminalContainer || !window.Terminal) {
           return terminalTerm;
@@ -969,17 +985,19 @@
             foreground: "#d7e0ea",
             cursor: "#7ec8ff",
           },
-          allowProposedApi: true,
         });
-        if (window.FitAddon?.FitAddon) {
-          terminalFitAddon = new window.FitAddon.FitAddon();
-          terminalTerm.loadAddon(terminalFitAddon);
+        const fitAddon = loadFitAddon();
+        if (fitAddon) {
+          terminalTerm.loadAddon(fitAddon);
         }
         terminalTerm.open(terminalContainer);
         terminalTerm.onData((data) => {
           if (terminalWs && terminalWs.readyState === WebSocket.OPEN) {
             terminalWs.send(data);
           }
+        });
+        terminalTerm.onResize(({ cols, rows }) => {
+          sendTerminalResize(cols, rows);
         });
         return terminalTerm;
       }
@@ -990,8 +1008,18 @@
         }
       }
 
+      function sendTerminalResize(cols, rows) {
+        if (!terminalWs || terminalWs.readyState !== WebSocket.OPEN) {
+          return;
+        }
+        const nextCols = cols || terminalTerm?.cols || 80;
+        const nextRows = rows || terminalTerm?.rows || 24;
+        terminalWs.send(JSON.stringify({ type: "resize", cols: nextCols, rows: nextRows }));
+      }
+
       function disconnectTerminal() {
         terminalConnected = false;
+        terminalInfo = null;
         if (terminalWs) {
           try {
             terminalWs.close();
@@ -1006,6 +1034,7 @@
         if (!terminalContainer) return;
         if (terminalWs && (terminalWs.readyState === WebSocket.CONNECTING || terminalWs.readyState === WebSocket.OPEN)) {
           fitTerminal();
+          terminalTerm?.focus();
           return;
         }
 
@@ -1013,21 +1042,37 @@
         setTerminalStatus("连接中...", false);
 
         try {
-          if (!terminalInfo) {
-            terminalInfo = await fetchJson("/terminal-info");
+          if (!window.Terminal) {
+            throw new Error("xterm 组件加载失败，请检查 CDN 或刷新页面");
           }
+
+          terminalInfo = await fetchJson("/terminal-info");
           ensureTerminalInstance();
           fitTerminal();
 
-          const wsUrl = buildTerminalWsUrl(terminalInfo.wsPath || "/admin/terminal/ws");
+          const baseUrl = buildTerminalWsUrl(terminalInfo.wsPath || "/admin/terminal/ws");
+          const params = new URLSearchParams();
+          if (terminalInfo.ticket) {
+            params.set("ticket", terminalInfo.ticket);
+          }
+          if (terminalTerm?.cols) {
+            params.set("cols", String(terminalTerm.cols));
+          }
+          if (terminalTerm?.rows) {
+            params.set("rows", String(terminalTerm.rows));
+          }
+          const wsUrl = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
           terminalWs = new WebSocket(wsUrl);
           terminalWs.binaryType = "arraybuffer";
 
           terminalWs.addEventListener("open", () => {
             terminalConnected = true;
             const cwd = terminalInfo.cwd || "-";
-            setTerminalStatus(`已连接 · ${cwd}`, false);
+            const mode = terminalInfo.pty === false ? "pipe" : "pty";
+            setTerminalStatus(`已连接 · ${cwd} · ${mode}`, false);
             fitTerminal();
+            sendTerminalResize();
+            terminalTerm?.focus();
           });
 
           terminalWs.addEventListener("message", (event) => {
@@ -1036,15 +1081,20 @@
               terminalTerm.write(new TextDecoder().decode(event.data));
               return;
             }
+            if (event.data instanceof Blob) {
+              event.data.text().then((text) => terminalTerm.write(text)).catch(() => {});
+              return;
+            }
             terminalTerm.write(String(event.data));
           });
 
-          terminalWs.addEventListener("close", () => {
+          terminalWs.addEventListener("close", (event) => {
             terminalConnected = false;
             terminalWs = null;
-            setTerminalStatus("连接已断开", true);
+            const reason = event.reason ? ` (${event.reason})` : "";
+            setTerminalStatus(`连接已断开 · code=${event.code}${reason}`, true);
             if (terminalTerm) {
-              terminalTerm.write("\r\n\r\n[terminal] 连接已断开，点击「重新连接」恢复。\r\n");
+              terminalTerm.write(`\r\n\r\n[terminal] 连接已断开 code=${event.code}${reason}，点击「重新连接」恢复。\r\n`);
             }
           });
 

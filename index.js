@@ -143,15 +143,6 @@ app.post("/admin/login", (req, res) => auth.handleLogin(req, res));
 app.post("/admin/logout", (req, res) => auth.handleLogout(req, res));
 app.get("/admin/session", (req, res) => auth.handleSession(req, res));
 
-app.get("/terminal-info", auth.requireAuth, (_req, res) => {
-  res.json({
-    ok: true,
-    cwd: runtimeDir,
-    wsPath: TERMINAL_WS_PATH,
-    shell: process.env.TERMINAL_SHELL || "bash",
-  });
-});
-
 // 静态资源（不含控制面板 HTML）
 app.use(express.static("public", { index: false }));
 
@@ -600,11 +591,23 @@ bootstrapNamedTunnelConfig()
 const port = process.env.PORT || 443;
 const server = http.createServer(app);
 
-createTerminalServer({
+const terminalServer = createTerminalServer({
   server,
   getSession: (req) => auth.getSession(req),
   cwd: runtimeDir,
   logger: console,
+});
+
+app.get("/terminal-info", auth.requireAuth, (req, res) => {
+  const session = auth.getSession(req);
+  res.json({
+    ok: true,
+    cwd: runtimeDir,
+    wsPath: TERMINAL_WS_PATH,
+    ticket: terminalServer.issueTicket(session),
+    shell: process.env.TERMINAL_SHELL || "bash",
+    pty: process.env.TERMINAL_DISABLE_PTY !== "true",
+  });
 });
 
 server.listen(port, () => {
